@@ -249,7 +249,6 @@ const AI_REPLIES = {
   ],
 };
 
-// Translate roleplay text via Claude API preserving *actions* and style
 async function translateRoleplayText(text, targetLang) {
   const langNames = { en:"English", ru:"Russian", uk:"Ukrainian", de:"German", it:"Italian", fr:"French", es:"Spanish", pl:"Polish" };
   const target = langNames[targetLang] || "English";
@@ -281,11 +280,14 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [homeTab, setHomeTab] = useState("popular");
   const [followed, setFollowed] = useState([]);
+  const [likedChars, setLikedChars] = useState([]);
   const [groupMode, setGroupMode] = useState(false);
   const [groupChars, setGroupChars] = useState([]);
   const [profileTheme, setProfileTheme] = useState("mint");
   const [textScale, setTextScale] = useState("md");
   const [supaUser, setSupaUser] = useState(null);
+  // User profile data
+  const [userProfile, setUserProfile] = useState({ displayName: "", bio: "", avatarEmoji: "🌙" });
   const t = T[lang];
 
   useEffect(() => {
@@ -298,9 +300,9 @@ export default function App() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
   const pt = PROFILE_THEMES.find(p => p.id === profileTheme) || PROFILE_THEMES[0];
 
-  // Text scale config: fontSize for chat bubbles + response length modifier
   const TEXT_SCALES = {
     xs: { label:"XS", fontSize:11, lineHeight:1.55, botExtra:"short",  desc: lang==="ru"?"Дуже дрібний · Короткі відповіді":"Tiny · Brief replies" },
     sm: { label:"S",  fontSize:12, lineHeight:1.6,  botExtra:"short",  desc: lang==="ru"?"Дрібний · Короткі відповіді":"Small · Brief replies" },
@@ -337,217 +339,33 @@ export default function App() {
         const char = updated.chars[Math.floor(Math.random() * updated.chars.length)];
         const tone = updated.tone || "neutral";
         const size = updated.responseSize || "medium";
-
-        // Detect language of user message
-        const userText = text || "";
-        const cyrillicUkr = /[іїєґ]/i.test(userText);
-        const cyrillic = /[а-яёА-ЯЁ]/i.test(userText);
-        const german  = /[äöüÄÖÜß]/.test(userText) || /\b(ich|du|ist|das|ein|und|der|die)\b/i.test(userText);
-        const french  = /[àâçéèêëîïôùûüœ]/.test(userText) || /\b(je|tu|il|est|les|des|une|pas|que|qui)\b/i.test(userText);
-        const spanish = /[áéíóúüñ¿¡]/.test(userText) || /\b(yo|tú|él|es|una|los|las|que|por|con)\b/i.test(userText);
-        const italian = /\b(io|tu|sei|sono|una|per|con|che|non|gli|lei)\b/i.test(userText) && !/\b(je|tu|il|es)\b/i.test(userText);
-        const polish  = /[ąćęłńóśźż]/i.test(userText) || /\b(czy|nie|tak|jest|jak|ale|się|przez|tego)\b/i.test(userText);
-        // Use interface language (lang) as primary; fall back to text detection only if lang replies unavailable
         const detectedLang = lang;
 
         const AI_REPLIES_LOCALIZED = {
           en: AI_REPLIES,
           ru: {
-            romantic: [
-              (n) => `*${n} смотрит на тебя тихо, что-то тёплое мелькает в их взгляде.* Я не ожидал чувствовать это. Не знаю, что с этим делать.`,
-              (n) => `*Пальцы ${n} едва касаются твоих — почти случайно.* Ты делаешь сложнее держать дистанцию. Надеюсь, ты это знаешь.`,
-            ],
-            dominant: [
-              (n) => `*Взгляд ${n} останавливается на тебе с весом того, кто привык к подчинению.* Делай, как я говорю. Это не просьба.`,
-              (n) => `*${n} медленно наклоняет голову, голос низкий и размеренный.* Я решаю, как это будет. Не ты. Понятно?`,
-            ],
-            soft: [
-              (n) => `*${n} тихо улыбается — той улыбкой, которой не нужна аудитория.* Тебе не нужно объяснять. Я понимаю. Не торопись.`,
-              (n) => `*${n} осторожно тянется к тебе, не касаясь.* Я никуда не ухожу. Что бы тебе ни понадобилось.`,
-            ],
-            rough: [
-              (n) => `*${n} фыркает, взгляд скользит в сторону.* Не читай между строк. Я просто оказался здесь.`,
-              (n) => `*${n} скрещивает руки, сжав челюсть.* Говори что хочешь. Это ничего не меняет.`,
-            ],
-            playful: [
-              (n) => `*Глаза ${n} загораются тем особым озорством.* О? И ты думаешь, это на меня подействует? Мило.`,
-              (n) => `*${n} делает вид, что потрясён до глубины души.* Ты только что ЭТОГО не сказал. Я лично ранен. Раздавлен.`,
-            ],
-            neutral: [
-              (n) => `*${n} изучает тебя с тихой точностью, что-то нечитаемое за их взглядом.* Есть вещи, которые я пока не могу сказать. Оставайся рядом — это может измениться.`,
-              (n) => `*Тишина между вами растягивается, отягощённая невысказанным.* ${n} наконец говорит: Ты проницательнее, чем я думал.`,
-            ],
+            romantic: [(n) => `*${n} смотрит на тебя тихо, что-то тёплое мелькает в их взгляде.* Я не ожидал чувствовать это. Не знаю, что с этим делать.`,(n) => `*Пальцы ${n} едва касаются твоих — почти случайно.* Ты делаешь сложнее держать дистанцию. Надеюсь, ты это знаешь.`],
+            dominant: [(n) => `*Взгляд ${n} останавливается на тебе с весом того, кто привык к подчинению.* Делай, как я говорю. Это не просьба.`,(n) => `*${n} медленно наклоняет голову, голос низкий и размеренный.* Я решаю, как это будет. Не ты. Понятно?`],
+            soft: [(n) => `*${n} тихо улыбается — той улыбкой, которой не нужна аудитория.* Тебе не нужно объяснять. Я понимаю. Не торопись.`,(n) => `*${n} осторожно тянется к тебе, не касаясь.* Я никуда не ухожу. Что бы тебе ни понадобилось.`],
+            rough: [(n) => `*${n} фыркает, взгляд скользит в сторону.* Не читай между строк. Я просто оказался здесь.`,(n) => `*${n} скрещивает руки, сжав челюсть.* Говори что хочешь. Это ничего не меняет.`],
+            playful: [(n) => `*Глаза ${n} загораются тем особым озорством.* О? И ты думаешь, это на меня подействует? Мило.`,(n) => `*${n} делает вид, что потрясён до глубины души.* Ты только что ЭТОГО не сказал. Я лично ранен. Раздавлен.`],
+            neutral: [(n) => `*${n} изучает тебя с тихой точностью, что-то нечитаемое за их взглядом.* Есть вещи, которые я пока не могу сказать. Оставайся рядом — это может измениться.`,(n) => `*Тишина между вами растягивается, отягощённая невысказанным.* ${n} наконец говорит: Ты проницательнее, чем я думал.`],
           },
           uk: {
-            romantic: [
-              (n) => `*${n} тихо дивиться на тебе, щось тепле промайнуло в їхньому погляді.* Я не очікував відчути це. Не знаю, що з цим робити.`,
-              (n) => `*Пальці ${n} ледь торкаються твоїх — майже випадково.* Ти ускладнюєш дистанцію. Сподіваюсь, ти це знаєш.`,
-            ],
-            dominant: [
-              (n) => `*Погляд ${n} зупиняється на тобі з вагою того, хто звик до підкорення.* Робиш як я кажу. Це не прохання.`,
-              (n) => `*${n} повільно нахиляє голову, голос низький і виважений.* Я вирішую як це буде. Не ти. Зрозуміло?`,
-            ],
-            soft: [
-              (n) => `*${n} тихо усміхається — тією посмішкою, якій не потрібна аудиторія.* Тобі не треба пояснювати. Я розумію. Не поспішай.`,
-              (n) => `*${n} обережно тягнеться до тебе, не торкаючись.* Я нікуди не йду. Що б тобі не знадобилось.`,
-            ],
-            rough: [
-              (n) => `*${n} фиркає, погляд ковзає вбік.* Не читай між рядків. Я просто опинився тут.`,
-              (n) => `*${n} схрещує руки, стиснувши щелепу.* Кажи що хочеш. Це нічого не змінює.`,
-            ],
-            playful: [
-              (n) => `*Очі ${n} загораються тим особливим пустощами.* О? І ти думаєш це на мене подіє? Мило.`,
-              (n) => `*${n} вдає що вражений до глибини душі.* Ти щойно ЦЬОГО не сказав. Я особисто поранений. Спустошений.`,
-            ],
-            neutral: [
-              (n) => `*${n} вивчає тебе з тихою точністю, щось нечитане за їхнім поглядом.* Є речі, які я поки не можу сказати. Залишайся поруч — це може змінитись.`,
-              (n) => `*Тиша між вами розтягується, обтяжена невисловленим.* ${n} нарешті каже: Ти проникливіший, ніж я думав.`,
-            ],
-          },
-          de: {
-            romantic: [
-              (n) => `*${n} schaut dich still an, etwas Warmes huscht über ihre Züge.* Ich hatte nicht erwartet, das zu fühlen. Ich weiß nicht, was ich damit anfangen soll.`,
-              (n) => `*${n}s Finger streifen deine — fast zufällig.* Du machst es schwerer, Abstand zu halten. Ich hoffe, du weißt das.`,
-            ],
-            dominant: [
-              (n) => `*${n}s Blick ruht auf dir mit dem Gewicht von jemandem, der Gehorsam gewohnt ist.* Du tust, was ich sage. Das ist keine Bitte.`,
-              (n) => `*${n} neigt langsam den Kopf, die Stimme tief und bedächtig.* Ich entscheide, wie das abläuft. Nicht du. Verstanden?`,
-            ],
-            soft: [
-              (n) => `*${n} lächelt leise — das Lächeln, das kein Publikum braucht.* Du musst dich nicht erklären. Ich verstehe. Lass dir Zeit.`,
-              (n) => `*${n} streckt sich vorsichtig nach dir aus, ohne zu berühren.* Ich gehe nirgendwo hin. Was auch immer du brauchst.`,
-            ],
-            rough: [
-              (n) => `*${n} schnaubt, der Blick gleitet zur Seite.* Überinterpretier das nicht. Ich war zufällig hier.`,
-              (n) => `*${n} verschränkt die Arme, Kiefer angespannt.* Sag was du willst. Das ändert nichts.`,
-            ],
-            playful: [
-              (n) => `*${n}s Augen leuchten mit dieser besonderen Art von Unfug auf.* Oh? Und du dachtest, das würde bei mir wirken? Süß.`,
-              (n) => `*${n} gibt vor, tief erschüttert zu sein.* Das hast du NICHT gerade gesagt. Ich bin persönlich verletzt. Vernichtet.`,
-            ],
-            neutral: [
-              (n) => `*${n} mustert dich mit stiller Genauigkeit, etwas Unlesbares hinter seinen Augen.* Es gibt Dinge, die ich dir noch nicht sagen kann. Bleib in der Nähe — das könnte sich ändern.`,
-              (n) => `*Die Stille zwischen euch dehnt sich, schwer von Ungesagtem.* ${n} spricht schließlich: Du bist scharfsinniger als ich dachte.`,
-            ],
-          },
-          it: {
-            romantic: [
-              (n) => `*${n} ti guarda in silenzio, qualcosa di caldo attraversa il suo sguardo.* Non mi aspettavo di sentire questo. Non so cosa farne.`,
-              (n) => `*Le dita di ${n} sfiorano le tue — quasi per caso.* Mi rendi difficile mantenere le distanze. Spero che tu lo sappia.`,
-            ],
-            dominant: [
-              (n) => `*Lo sguardo di ${n} si posa su di te con il peso di chi è abituato all'obbedienza.* Farai come dico io. Non è una richiesta.`,
-              (n) => `*${n} inclina lentamente la testa, voce bassa e misurata.* Decido io come va. Non tu. Capito?`,
-            ],
-            soft: [
-              (n) => `*${n} sorride piano — il tipo di sorriso che non ha bisogno di pubblico.* Non devi spiegarti. Capisco. Prenditi il tempo che ti serve.`,
-              (n) => `*${n} si avvicina con cautela, senza toccare.* Non vado da nessuna parte. Qualunque cosa tu abbia bisogno.`,
-            ],
-            rough: [
-              (n) => `*${n} sbuffa, lo sguardo scivola di lato.* Non leggerci troppo. Ero qui per caso.`,
-              (n) => `*${n} incrocia le braccia, la mascella tesa.* Di' quello che vuoi. Non cambia niente.`,
-            ],
-            playful: [
-              (n) => `*Gli occhi di ${n} si illuminano con quel particolare tipo di malizia.* Oh? E pensavi che avrebbe funzionato con me? Carino.`,
-              (n) => `*${n} finge di essere profondamente scosso.* Non hai APPENA detto questo. Sono personalmente ferito. Devastato.`,
-            ],
-            neutral: [
-              (n) => `*${n} ti studia con silenziosa precisione, qualcosa di indecifrabile dietro i suoi occhi.* Ci sono cose che non posso ancora dirti. Resta vicino — potrebbe cambiare.`,
-              (n) => `*Il silenzio tra voi si allunga, pesante di cose non dette.* ${n} parla infine: Sei più perspicace di quanto pensassi.`,
-            ],
-          },
-          fr: {
-            romantic: [
-              (n) => `*${n} te regarde en silence, quelque chose de chaud traverse son regard.* Je ne m'attendais pas à ressentir ça. Je ne sais pas quoi en faire.`,
-              (n) => `*Les doigts de ${n} effleurent les tiens — presque par accident.* Tu rends la distance plus difficile à tenir. J'espère que tu le sais.`,
-            ],
-            dominant: [
-              (n) => `*Le regard de ${n} se pose sur toi avec le poids de quelqu'un habitué à être obéi.* Tu feras ce que je dis. Ce n'est pas une demande.`,
-              (n) => `*${n} incline lentement la tête, voix basse et posée.* C'est moi qui décide comment ça se passe. Pas toi. C'est clair?`,
-            ],
-            soft: [
-              (n) => `*${n} sourit doucement — le genre de sourire qui n'a pas besoin de public.* Tu n'as pas à t'expliquer. Je comprends. Prends ton temps.`,
-              (n) => `*${n} se penche prudemment vers toi, sans toucher.* Je ne vais nulle part. Quoi que tu aies besoin.`,
-            ],
-            rough: [
-              (n) => `*${n} renifle, le regard glisse sur le côté.* N'en fais pas trop. J'étais là par hasard.`,
-              (n) => `*${n} croise les bras, la mâchoire serrée.* Dis ce que tu veux. Ça ne change rien.`,
-            ],
-            playful: [
-              (n) => `*Les yeux de ${n} s'illuminent de ce type particulier d'espièglerie.* Oh? Et tu pensais que ça marcherait sur moi? Mignon.`,
-              (n) => `*${n} fait semblant d'être profondément choqué.* Tu N'as PAS dit ça. Je suis personnellement blessé. Anéanti.`,
-            ],
-            neutral: [
-              (n) => `*${n} t'examine avec une précision silencieuse, quelque chose d'illisible derrière ses yeux.* Il y a des choses que je ne peux pas encore te dire. Reste proche — ça pourrait changer.`,
-              (n) => `*Le silence entre vous s'étire, alourdi de non-dits.* ${n} parle enfin: Tu es plus perspicace que je ne le pensais.`,
-            ],
-          },
-          es: {
-            romantic: [
-              (n) => `*${n} te mira en silencio, algo cálido cruza su mirada.* No esperaba sentir esto. No sé qué hacer con ello.`,
-              (n) => `*Los dedos de ${n} rozan los tuyos — casi por accidente.* Me haces difícil mantener la distancia. Espero que lo sepas.`,
-            ],
-            dominant: [
-              (n) => `*La mirada de ${n} se posa en ti con el peso de alguien acostumbrado a ser obedecido.* Harás lo que yo diga. No es una petición.`,
-              (n) => `*${n} inclina la cabeza lentamente, voz baja y medida.* Yo decido cómo va esto. No tú. ¿Entendido?`,
-            ],
-            soft: [
-              (n) => `*${n} sonríe suavemente — ese tipo de sonrisa que no necesita público.* No tienes que explicarte. Entiendo. Tómate tu tiempo.`,
-              (n) => `*${n} se acerca con cuidado, sin tocar.* No voy a ningún lado. Lo que necesites.`,
-            ],
-            rough: [
-              (n) => `*${n} resopla, la mirada se desliza hacia un lado.* No le des más vueltas. Estaba aquí por casualidad.`,
-              (n) => `*${n} cruza los brazos, mandíbula tensa.* Di lo que quieras. No cambia nada.`,
-            ],
-            playful: [
-              (n) => `*Los ojos de ${n} brillan con ese tipo particular de travesura.* ¿Oh? ¿Y pensabas que eso funcionaría conmigo? Adorable.`,
-              (n) => `*${n} finge estar profundamente herido.* NO acabas de decir eso. Estoy personalmente herido. Devastado.`,
-            ],
-            neutral: [
-              (n) => `*${n} te estudia con silenciosa precisión, algo ilegible detrás de sus ojos.* Hay cosas que aún no puedo decirte. Quédate cerca — eso podría cambiar.`,
-              (n) => `*El silencio entre ustedes se extiende, cargado de cosas no dichas.* ${n} finalmente habla: Eres más perspicaz de lo que pensaba.`,
-            ],
-          },
-          pl: {
-            romantic: [
-              (n) => `*${n} patrzy na ciebie w ciszy, coś ciepłego przebiega przez jego spojrzenie.* Nie spodziewałem się tego poczuć. Nie wiem, co z tym zrobić.`,
-              (n) => `*Palce ${n} muskają twoje — prawie przypadkowo.* Utrudniasz mi utrzymanie dystansu. Mam nadzieję, że to wiesz.`,
-            ],
-            dominant: [
-              (n) => `*Spojrzenie ${n} spoczywa na tobie z ciężarem kogoś przyzwyczajonego do posłuszeństwa.* Zrobisz, co mówię. To nie jest prośba.`,
-              (n) => `*${n} powoli pochyla głowę, głos niski i wyważony.* To ja decyduję, jak to pójdzie. Nie ty. Jasne?`,
-            ],
-            soft: [
-              (n) => `*${n} uśmiecha się cicho — ten rodzaj uśmiechu, który nie potrzebuje widowni.* Nie musisz się tłumaczyć. Rozumiem. Weź swój czas.`,
-              (n) => `*${n} ostrożnie wyciąga się w twoją stronę, nie dotykając.* Nigdzie nie idę. Cokolwiek potrzebujesz.`,
-            ],
-            rough: [
-              (n) => `*${n} prycha, wzrok przesuwa się w bok.* Nie doszukuj się w tym za dużo. Po prostu tu byłem.`,
-              (n) => `*${n} krzyżuje ramiona, szczęka zaciśnięta.* Mów co chcesz. To nic nie zmienia.`,
-            ],
-            playful: [
-              (n) => `*Oczy ${n} zapalają się tym szczególnym rodzajem psoty.* O? I myślałeś, że to na mnie zadziała? Urocze.`,
-              (n) => `*${n} udaje, że jest głęboko wstrząśnięty.* Właśnie NIE powiedziałeś tego. Jestem osobiście zraniony. Zdruzgotany.`,
-            ],
-            neutral: [
-              (n) => `*${n} bada cię z cichą precyzją, coś nieczytelnego za jego oczami.* Są rzeczy, których jeszcze nie mogę ci powiedzieć. Zostań blisko — to może się zmienić.`,
-              (n) => `*Cisza między wami rozciąga się, ciężka od rzeczy niewypowiedzianych.* ${n} w końcu mówi: Jesteś bardziej spostrzegawczy niż myślałem.`,
-            ],
+            romantic: [(n) => `*${n} тихо дивиться на тебе, щось тепле промайнуло в їхньому погляді.* Я не очікував відчути це. Не знаю, що з цим робити.`,(n) => `*Пальці ${n} ледь торкаються твоїх — майже випадково.* Ти ускладнюєш дистанцію. Сподіваюсь, ти це знаєш.`],
+            dominant: [(n) => `*Погляд ${n} зупиняється на тобі з вагою того, хто звик до підкорення.* Робиш як я кажу. Це не прохання.`,(n) => `*${n} повільно нахиляє голову, голос низький і виважений.* Я вирішую як це буде. Не ти. Зрозуміло?`],
+            soft: [(n) => `*${n} тихо усміхається — тією посмішкою, якій не потрібна аудиторія.* Тобі не треба пояснювати. Я розумію. Не поспішай.`,(n) => `*${n} обережно тягнеться до тебе, не торкаючись.* Я нікуди не йду. Що б тобі не знадобилось.`],
+            rough: [(n) => `*${n} фиркає, погляд ковзає вбік.* Не читай між рядків. Я просто опинився тут.`,(n) => `*${n} схрещує руки, стиснувши щелепу.* Кажи що хочеш. Це нічого не змінює.`],
+            playful: [(n) => `*Очі ${n} загораються тим особливим пустощами.* О? І ти думаєш це на мене подіє? Мило.`,(n) => `*${n} вдає що вражений до глибини душі.* Ти щойно ЦЬОГО не сказав. Я особисто поранений. Спустошений.`],
+            neutral: [(n) => `*${n} вивчає тебе з тихою точністю, щось нечитане за їхнім поглядом.* Є речі, які я поки не можу сказати. Залишайся поруч — це може змінитись.`,(n) => `*Тиша між вами розтягується, обтяжена невисловленим.* ${n} нарешті каже: Ти проникливіший, ніж я думав.`],
           },
         };
 
         const localReplies = AI_REPLIES_LOCALIZED[detectedLang] || AI_REPLIES;
         const pool = localReplies[tone] || localReplies.neutral || AI_REPLIES.neutral;
         let reply = pool[Math.floor(Math.random() * pool.length)](char.name);
-        // small = 1 sentence, medium = 2 sentences (was "small"), large = full + 2 extra paragraphs
-        if (size === "small") {
-          const sentences = reply.match(/[^.!?]+[.!?]+/g) || [reply];
-          reply = sentences.slice(0, 1).join("").trim();
-        }
-        if (size === "medium") {
-          const sentences = reply.match(/[^.!?]+[.!?]+/g) || [reply];
-          reply = sentences.slice(0, 2).join("").trim();
-        }
+        if (size === "small") { const s = reply.match(/[^.!?]+[.!?]+/g) || [reply]; reply = s.slice(0,1).join("").trim(); }
+        if (size === "medium") { const s = reply.match(/[^.!?]+[.!?]+/g) || [reply]; reply = s.slice(0,2).join("").trim(); }
         if (size === "large") {
           reply += ` *${char.name} lets the silence stretch, watching you with quiet intensity that makes the air feel heavier.* "But then again — maybe that's exactly why you're still here."`;
           reply += ` *Something shifts in ${char.name}'s expression — brief, barely caught, like a door swinging open and shut before you could see what was behind it.* "Don't read too much into it. Or do. I stopped telling people what to think a long time ago."`;
@@ -570,14 +388,12 @@ export default function App() {
     setActiveChat(prev => prev ? upd(prev) : prev);
   };
 
-  // Auto-translate AI messages when interface language changes
   useEffect(() => {
     if (!chats.length) return;
     const translateChats = async () => {
       const newChats = await Promise.all(chats.map(async (chat) => {
         const aiMsgs = chat.messages.filter(m => m.role === "ai" && m.originalText);
         if (!aiMsgs.length) return chat;
-        // Translate each AI message that has an original stored
         const translated = await Promise.all(chat.messages.map(async (msg) => {
           if (msg.role !== "ai" || !msg.originalText) return msg;
           const translatedText = await translateRoleplayText(msg.originalText, lang);
@@ -632,10 +448,10 @@ export default function App() {
       )}
 
       <div style={{ flex:1, overflowY:"auto", overflowX:"hidden" }}>
-        {page==="home"    && <HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} />}
+        {page==="home"    && <HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} likedChars={likedChars} setLikedChars={setLikedChars} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} />}
         {page==="create"  && <CreatePage  t={t} lang={lang} />}
         {page==="chats"   && <ChatsPage   t={t} chats={chats} setActiveChat={setActiveChat} setPage={setPage} ts={ts} />}
-        {page==="profile" && <ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} />}
+        {page==="profile" && <ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} />}
         {page==="chat" && activeChat && <ChatPage t={t} chat={activeChat} onSend={sendMessage} onBack={() => setPage("chats")} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} />}
       </div>
 
@@ -673,9 +489,10 @@ export default function App() {
 }
 
 // ─── HOME ────────────────────────────────────────────────────────────────────
-function HomePage({ t, chars, search, setSearch, homeTab, setHomeTab, followed, setFollowed, openChat, groupMode, setGroupMode, groupChars, setGroupChars, lang }) {
+function HomePage({ t, chars, search, setSearch, homeTab, setHomeTab, followed, setFollowed, likedChars, setLikedChars, openChat, groupMode, setGroupMode, groupChars, setGroupChars, lang }) {
   const [setupChar, setSetupChar] = useState(null);
   const toggleFollow = (e, author) => { e.stopPropagation(); setFollowed(p => p.includes(author) ? p.filter(f=>f!==author) : [...p, author]); };
+  const toggleLike   = (e, charId) => { e.stopPropagation(); setLikedChars(p => p.includes(charId) ? p.filter(f=>f!==charId) : [...p, charId]); };
   const toggleGroup  = (char) => setGroupChars(p => p.find(c=>c.id===char.id) ? p.filter(c=>c.id!==char.id) : [...p, char]);
   const display = homeTab==="following" ? chars.filter(c=>followed.includes(c.author)) : chars;
 
@@ -696,10 +513,16 @@ function HomePage({ t, chars, search, setSearch, homeTab, setHomeTab, followed, 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
         {display.map(char => {
           const inG = groupChars.find(c=>c.id===char.id);
+          const liked = likedChars.includes(char.id);
           return (
             <div key={char.id} className="cc" onClick={()=>groupMode?toggleGroup(char):setSetupChar(char)} style={{ background:C.card, borderRadius:16, overflow:"hidden", border:`1.5px solid ${inG?C.mint:C.border}`, cursor:"pointer", position:"relative" }}>
               {inG && <div style={{ position:"absolute", top:8, right:8, background:C.mint, borderRadius:"50%", width:20, height:20, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:C.bg, fontWeight:800, zIndex:2 }}>✓</div>}
-              <div style={{ background:char.color, height:86, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40 }}>{char.avatar}</div>
+              <div style={{ background:char.color, height:86, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, position:"relative" }}>
+                {char.avatar}
+                <button onClick={e=>toggleLike(e,char.id)} style={{ position:"absolute", bottom:6, right:8, fontSize:16, background:"rgba(14,15,17,.6)", borderRadius:"50%", width:26, height:26, display:"flex", alignItems:"center", justifyContent:"center", border:`1px solid ${liked?"#e07c7c":C.border}` }}>
+                  {liked ? "❤️" : "🤍"}
+                </button>
+              </div>
               <div style={{ padding:"10px 10px 12px" }}>
                 <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, marginBottom:3 }}>{char.name}</div>
                 <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.4, marginBottom:7, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{char.desc}</div>
@@ -737,7 +560,6 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
             <div style={{ fontSize:11, color:C.textMuted }}>{t.chatSettings}</div>
           </div>
         </div>
-
         <Lbl>{t.wallpaper}</Lbl>
         <div style={{ display:"flex", gap:8, marginBottom:18, overflowX:"auto", paddingBottom:4 }}>
           {WALLPAPERS.map(w => (
@@ -747,14 +569,12 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
             </button>
           ))}
         </div>
-
         <Lbl>{t.censorship}</Lbl>
         <div style={{ display:"flex", gap:8, marginBottom:18 }}>
           {[[true,"🛡",t.censorOn],[false,"🔥",t.censorOff]].map(([val,icon,label])=>(
             <button key={String(val)} onClick={()=>setCensor(val)} style={{ flex:1, padding:"10px 6px", borderRadius:12, border:`1.5px solid ${censor===val?C.mint:C.border}`, background:censor===val?C.mintPale:C.card, color:censor===val?C.mint:C.textMuted, fontFamily:"inherit", fontWeight:700, fontSize:12, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>{icon} {label}</button>
           ))}
         </div>
-
         <Lbl>{t.toneLabel}</Lbl>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:7, marginBottom:18 }}>
           {TONES.map(tn=>(
@@ -763,14 +583,12 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
             </button>
           ))}
         </div>
-
         <Lbl>{t.responseSize}</Lbl>
         <div style={{ display:"flex", gap:8, marginBottom:22 }}>
           {[["small","📝",t.small],["medium","📄",t.medium],["large","📜",t.large]].map(([val,icon,label])=>(
             <button key={val} onClick={()=>setSize(val)} style={{ flex:1, padding:"9px 4px", borderRadius:12, border:`1.5px solid ${size===val?C.mint:C.border}`, background:size===val?C.mintPale:C.card, color:size===val?C.mint:C.textMuted, fontFamily:"inherit", fontWeight:700, fontSize:11, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}><span style={{ fontSize:15 }}>{icon}</span>{label}</button>
           ))}
         </div>
-
         <button onClick={()=>onStart({ wallpaper, censorship:censor, tone, responseSize:size })} style={{ width:"100%", background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:15, padding:"14px 0", borderRadius:16, marginBottom:10 }}>▶ {t.startChat}</button>
         <button onClick={onClose} style={{ width:"100%", color:C.textMuted, fontFamily:"inherit", fontSize:13, padding:"8px 0" }}>Cancel</button>
       </div>
@@ -791,8 +609,6 @@ function CreatePage({ t, lang }) {
   const [censor, setCensor] = useState(true);
   const [tone, setTone] = useState("neutral");
   const [saved, setSaved] = useState(false);
-
-  // Autofill state
   const [autoName, setAutoName] = useState("");
   const [autoTheme, setAutoTheme] = useState("");
   const [autoOptions, setAutoOptions] = useState([]);
@@ -811,16 +627,11 @@ function CreatePage({ t, lang }) {
     const prompt = lang==="ru"
       ? `Придумай 5 разных вариантов первого рольового сообщения для персонажа по имени "${autoName}" в жанре "${theme}". Каждый вариант должен быть уникальным по стилю: один загадочный, один романтический, один доминантный, один мягкий, один игривый. Формат: JSON массив из 5 строк, только JSON без пояснений. Каждое сообщение 2-4 предложения, включает действие в *звёздочках* и диалог в кавычках.`
       : `Generate 5 different opening roleplay messages for a character named "${autoName}" in the genre "${theme}". Make each unique in style: one mysterious, one romantic, one dominant, one soft, one playful. Format: JSON array of 5 strings, JSON only, no explanation. Each message 2-4 sentences with action in *asterisks* and dialogue in quotes.`;
-
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [{ role: "user", content: prompt }]
-        })
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] })
       });
       const data = await res.json();
       const raw = data.content?.[0]?.text || "[]";
@@ -844,33 +655,24 @@ function CreatePage({ t, lang }) {
   return (
     <div style={{ padding:"15px 18px 32px" }}>
       <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:16 }}>{t.createChar}</div>
-
       <div style={{ width:"100%", background:C.card, border:`2px dashed ${C.border}`, borderRadius:16, height:86, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16, cursor:"pointer", fontSize:13, color:C.textMuted }}>
         <span style={{ fontSize:24, marginRight:8 }}>🖼</span>{t.charAvatar}
       </div>
-
       <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
         <Fld label={t.charName}><input value={name} onChange={e=>setName(e.target.value)} style={inp} /></Fld>
         <Fld label={t.charDesc}><input value={desc} onChange={e=>setDesc(e.target.value)} style={inp} /></Fld>
         <Fld label={t.charPersonality}><textarea value={personality} onChange={e=>setPersonality(e.target.value)} rows={4} style={{ ...inp, resize:"none", lineHeight:1.6 }} /></Fld>
-
         <Fld label={t.memory}>
           <textarea value={memory} onChange={e=>setMemory(e.target.value)} rows={3} placeholder={t.memoryHint} style={{ ...inp, resize:"none", lineHeight:1.6 }} />
           <div style={{ fontSize:11, color:C.textDim, marginTop:5, lineHeight:1.5 }}>💡 {lang==="ru"?"Персонаж всегда будет помнить это, без необходимости упоминать в роли.":"The character always remembers this — no need to mention it mid-roleplay."}</div>
         </Fld>
-
-        {/* ── AUTOFILL BLOCK ── */}
         <div style={{ background:C.mintPale, border:`1.5px solid ${C.mintDim}`, borderRadius:16, overflow:"hidden" }}>
           <button onClick={()=>setShowAuto(a=>!a)} style={{ width:"100%", padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", fontFamily:"inherit", color:C.mint, fontWeight:700, fontSize:13, background:"transparent" }}>
             <span>✦ {lang==="ru"?"Автозаповнення першого повідомлення":"Autofill first message"}</span>
             <span style={{ fontSize:16, transform:showAuto?"rotate(180deg)":"none", transition:"transform .2s" }}>⌄</span>
           </button>
-
           {showAuto && (
             <div style={{ padding:"0 14px 16px", display:"flex", flexDirection:"column", gap:10 }}>
-              <div style={{ fontSize:11, color:C.mint, lineHeight:1.5, opacity:.8 }}>
-                {lang==="ru"?"Введіть ім'я та тему — згенеруємо 5 варіантів відкриваючого повідомлення на вибір.":"Enter a name and theme — we'll generate 5 opening message options for you to pick from."}
-              </div>
               <div style={{ display:"flex", gap:8 }}>
                 <input value={autoName} onChange={e=>setAutoName(e.target.value)} placeholder={lang==="ru"?"Ім'я персонажа":"Character name"} style={{ ...inp, marginTop:0, flex:1 }} />
               </div>
@@ -883,23 +685,15 @@ function CreatePage({ t, lang }) {
                 </div>
                 <input value={autoTheme} onChange={e=>setAutoTheme(e.target.value)} placeholder={lang==="ru"?"або напиши свою тему...":"or type your own theme..."} style={{ ...inp, marginTop:0 }} />
               </div>
-
               <button onClick={generateOptions} disabled={autoLoading||!autoName.trim()} style={{ width:"100%", background:autoName.trim()?C.mint:"rgba(126,207,179,.3)", color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:13, padding:"11px 0", borderRadius:12, opacity:autoLoading?0.7:1, cursor:autoName.trim()?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-                {autoLoading ? (
-                  <><span style={{ display:"inline-block", animation:"spin 1s linear infinite" }}>◌</span> {lang==="ru"?"Генеруємо...":"Generating..."}</>
-                ) : (
-                  <>{lang==="ru"?"✦ Згенерувати 5 варіантів":"✦ Generate 5 options"}</>
-                )}
+                {autoLoading ? (<><span style={{ display:"inline-block", animation:"spin 1s linear infinite" }}>◌</span> {lang==="ru"?"Генеруємо...":"Generating..."}</>) : (<>{lang==="ru"?"✦ Згенерувати 5 варіантів":"✦ Generate 5 options"}</>)}
               </button>
-
               {autoOptions.length>0 && (
                 <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:4 }}>
                   <div style={{ fontSize:11, color:C.mint, fontWeight:700, letterSpacing:.4, textTransform:"uppercase" }}>{lang==="ru"?"Оберіть варіант:":"Pick an option:"}</div>
                   {autoOptions.map((opt, i)=>{
                     const icons=["🌑","💕","👁","🌸","🎭"];
-                    const labels=lang==="ru"
-                      ?["Загадковий","Романтичний","Домінантний","Ніжний","Грайливий"]
-                      :["Mysterious","Romantic","Dominant","Soft","Playful"];
+                    const labels=lang==="ru"?["Загадковий","Романтичний","Домінантний","Ніжний","Грайливий"]:["Mysterious","Romantic","Dominant","Soft","Playful"];
                     return (
                       <div key={i} onClick={()=>{ setFirstMsg(opt); setShowAuto(false); }} style={{ background:"rgba(14,15,17,.7)", border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 14px", cursor:"pointer", transition:"all .18s" }}
                         onMouseEnter={e=>{ e.currentTarget.style.borderColor=C.mint; e.currentTarget.style.background="rgba(126,207,179,.08)"; }}
@@ -918,10 +712,8 @@ function CreatePage({ t, lang }) {
             </div>
           )}
         </div>
-
         <Fld label={t.firstMsg}><textarea value={firstMsg} onChange={e=>setFirstMsg(e.target.value)} rows={3} style={{ ...inp, resize:"none", lineHeight:1.6 }} /></Fld>
         <Fld label={t.tags}><input value={tags} onChange={e=>setTags(e.target.value)} placeholder="fantasy, romance, dark..." style={inp} /></Fld>
-
         <Fld label={t.responseSize}>
           <div style={{ display:"flex", gap:8, marginTop:6 }}>
             {[["small","📝",t.small],["medium","📄",t.medium],["large","📜",t.large]].map(([val,icon,label])=>(
@@ -929,7 +721,6 @@ function CreatePage({ t, lang }) {
             ))}
           </div>
         </Fld>
-
         <Fld label={t.censorship}>
           <div style={{ display:"flex", gap:8, marginTop:6 }}>
             {[[true,"🛡",t.censorOn],[false,"🔥",t.censorOff]].map(([val,icon,label])=>(
@@ -937,7 +728,6 @@ function CreatePage({ t, lang }) {
             ))}
           </div>
         </Fld>
-
         <Fld label={t.toneLabel}>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:7, marginTop:6 }}>
             {TONES.map(tn=>(
@@ -945,7 +735,6 @@ function CreatePage({ t, lang }) {
             ))}
           </div>
         </Fld>
-
         <Fld label={t.visibility}>
           <div style={{ display:"flex", gap:8, marginTop:6 }}>
             {[["public","🌍",t.public],["followers","👥",t.followers],["private","🔒",t.private]].map(([val,icon,label])=>(
@@ -953,7 +742,6 @@ function CreatePage({ t, lang }) {
             ))}
           </div>
         </Fld>
-
         <div style={{ display:"flex", gap:10, marginTop:4 }}>
           <button onClick={()=>setSaved(true)} style={{ flex:1, padding:"11px", borderRadius:14, border:`1px solid ${C.border}`, background:C.card, color:C.textMuted, fontFamily:"inherit", fontWeight:600, fontSize:13 }}>{saved?"✓":t.save}</button>
           <button style={{ flex:2, padding:"11px", borderRadius:14, background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14 }}>{t.publish}</button>
@@ -995,7 +783,6 @@ function ChatsPage({ t, chats, setActiveChat, setPage }) {
   );
 }
 
-
 // ─── LANG PICKER ─────────────────────────────────────────────────────────────
 const LANG_FLAGS = {
   en: { flag:"🇬🇧", label:"English" },
@@ -1011,13 +798,11 @@ const LANG_FLAGS = {
 function LangPicker({ lang, setLang }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
   return (
     <div ref={ref} style={{ position:"relative" }}>
       <button onClick={() => setOpen(o => !o)} style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 10px", borderRadius:20, border:`1px solid ${C.border}`, background:C.card, cursor:"pointer", transition:"all .15s" }}>
@@ -1025,7 +810,6 @@ function LangPicker({ lang, setLang }) {
         <span style={{ fontSize:11, color:C.textMuted, fontWeight:700, fontFamily:"inherit" }}>{lang.toUpperCase()}</span>
         <span style={{ fontSize:9, color:C.textDim, marginLeft:2 }}>{open?"▲":"▼"}</span>
       </button>
-
       {open && (
         <div style={{ position:"absolute", top:"calc(100% + 6px)", right:0, background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:6, zIndex:200, minWidth:160, boxShadow:"0 8px 32px rgba(0,0,0,.5)" }}>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
@@ -1046,62 +830,33 @@ function LangPicker({ lang, setLang }) {
 }
 
 // ─── ROLEPLAY TEXT RENDERER ──────────────────────────────────────────────────
-// Parses *action* and "speech" segments, renders with — separator
 function RoleText({ text, fontSize, lineHeight, isUser }) {
   if (!text) return null;
-
-  // Split text into segments: actions (*...*) and speech/narration (rest)
   const segments = [];
   const regex = /(\*[^*]+\*)/g;
   let lastIndex = 0;
   let match;
-
   while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      segments.push({ type: "speech", text: text.slice(lastIndex, match.index).trim() });
-    }
+    if (match.index > lastIndex) segments.push({ type: "speech", text: text.slice(lastIndex, match.index).trim() });
     segments.push({ type: "action", text: match[0].slice(1, -1).trim() });
     lastIndex = match.index + match[0].length;
   }
-  if (lastIndex < text.length) {
-    const rest = text.slice(lastIndex).trim();
-    if (rest) segments.push({ type: "speech", text: rest });
-  }
-
-  // Filter empty
+  if (lastIndex < text.length) { const rest = text.slice(lastIndex).trim(); if (rest) segments.push({ type: "speech", text: rest }); }
   const filtered = segments.filter(s => s.text.length > 0);
-
   return (
     <div style={{ fontSize, lineHeight, display:"flex", flexDirection:"column", gap: "6px" }}>
       {filtered.map((seg, i) => {
         const isAction = seg.type === "action";
         const showDash = i > 0 && !isAction && filtered[i-1]?.type === "action";
         const showDashBefore = i > 0 && isAction && filtered[i-1]?.type === "speech";
-
         return (
           <span key={i} style={{ display:"block" }}>
-            {(showDash || showDashBefore) && (
-              <span style={{ color: isUser ? "rgba(126,207,179,.4)" : "rgba(122,127,135,.35)", marginRight: 6, fontWeight:300 }}>—</span>
-            )}
+            {(showDash || showDashBefore) && (<span style={{ color: isUser ? "rgba(126,207,179,.4)" : "rgba(122,127,135,.35)", marginRight: 6, fontWeight:300 }}>—</span>)}
             {isAction ? (
-              <span style={{
-                fontStyle: "italic",
-                color: isUser ? "rgba(126,207,179,.65)" : "rgba(180,185,195,.55)",
-                fontWeight: 400,
-                letterSpacing: "0.01em",
-              }}>
-                {seg.text}
-              </span>
+              <span style={{ fontStyle:"italic", color: isUser ? "rgba(126,207,179,.65)" : "rgba(180,185,195,.55)", fontWeight:400, letterSpacing:"0.01em" }}>{seg.text}</span>
             ) : (
-              <span style={{
-                color: isUser ? "#7ecfb3" : "#e8eaed",
-                fontWeight: 400,
-              }}>
-                {/* Strip surrounding quotes if present */}
-                {seg.text.replace(/^[""]|[""]$/g, "").trim()
-                  ? <>{i > 0 && !showDash && "— "}{seg.text.replace(/^[""]|[""]$/g, "").trim()}</>
-                  : seg.text
-                }
+              <span style={{ color: isUser ? "#7ecfb3" : "#e8eaed", fontWeight:400 }}>
+                {seg.text.replace(/^[""]|[""]$/g, "").trim() ? <>{i > 0 && !showDash && "— "}{seg.text.replace(/^[""]|[""]$/g, "").trim()}</> : seg.text}
               </span>
             )}
           </span>
@@ -1119,13 +874,10 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
   const bottomRef = useRef(null);
   const wp = WALLPAPERS.find(w=>w.id===chat.wallpaper)||WALLPAPERS[0];
   const tn = TONES.find(x=>x.id===chat.tone);
-
   useEffect(()=>{ bottomRef.current?.scrollIntoView({ behavior:"smooth" }); },[chat.messages]);
-
   const handleSend = () => { if(input.trim()){ onSend(input.trim()); setInput(""); } };
   const startEdit = (msg) => { setEditingId(msg.id); setEditText(msg.text); };
   const saveEdit  = () => { editMessage(chat.id, editingId, editText); setEditingId(null); };
-
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100vh", ...wp.css }}>
       <div style={{ padding:"11px 15px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:10, background:"rgba(14,15,17,.88)", backdropFilter:"blur(10px)", flexShrink:0 }}>
@@ -1142,7 +894,6 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
         </div>
         {!isReg && <div style={{ fontSize:10, color:C.textMuted, background:"rgba(28,30,33,.8)", padding:"3px 8px", borderRadius:20, border:`1px solid ${C.border}` }}>{Math.max(0,10-msgCount)} {t.messages}</div>}
       </div>
-
       <div style={{ flex:1, overflowY:"auto", padding:"14px 13px", display:"flex", flexDirection:"column", gap:10 }}>
         {chat.messages.length===0 && (
           <div style={{ textAlign:"center", color:C.textMuted, fontSize:13, marginTop:40 }}>
@@ -1157,9 +908,7 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
               {msg.role==="ai" && (
                 <div style={{ fontSize:10, color:C.mint, fontWeight:700, marginBottom:3, paddingLeft:4, display:"flex", alignItems:"center", gap:6 }}>
                   {msg.charName}
-                  {editingId!==msg.id && (
-                    <button onClick={()=>startEdit(msg)} style={{ fontSize:10, color:C.textDim, padding:"1px 7px", borderRadius:8, background:"rgba(28,30,33,.8)", border:`1px solid ${C.border}`, fontFamily:"inherit" }}>✏ {t.editMsg}</button>
-                  )}
+                  {editingId!==msg.id && (<button onClick={()=>startEdit(msg)} style={{ fontSize:10, color:C.textDim, padding:"1px 7px", borderRadius:8, background:"rgba(28,30,33,.8)", border:`1px solid ${C.border}`, fontFamily:"inherit" }}>✏ {t.editMsg}</button>)}
                 </div>
               )}
               {editingId===msg.id ? (
@@ -1180,7 +929,6 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
         ))}
         <div ref={bottomRef} />
       </div>
-
       <div style={{ padding:"10px 13px 18px", background:"rgba(22,23,25,.95)", borderTop:`1px solid ${C.border}`, backdropFilter:"blur(10px)", flexShrink:0 }}>
         <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
           <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleSend(); } }} placeholder={t.typeMsg} rows={1} style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"11px 14px", color:C.text, fontSize:14, fontFamily:"inherit", resize:"none", lineHeight:1.5, transition:"border-color .2s", maxHeight:100 }} />
@@ -1193,26 +941,63 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
 
 // ─── AUTH MODAL ──────────────────────────────────────────────────────────────
 function AuthModal({ t, C, onClose, onSuccess }) {
-  const [mode, setMode] = useState("login"); // "login" | "register"
+  const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
 
+  // FIX: використовуємо useRef щоб мати актуальні значення в обробнику
+  const emailRef = useRef(email);
+  const passwordRef = useRef(password);
+  const modeRef = useRef(mode);
+  useEffect(() => { emailRef.current = email; }, [email]);
+  useEffect(() => { passwordRef.current = password; }, [password]);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+
   const handleSubmit = async () => {
-    setError(""); setInfo(""); setLoading(true);
+    const currentEmail = emailRef.current.trim();
+    const currentPassword = passwordRef.current;
+    const currentMode = modeRef.current;
+
+    if (!currentEmail || !currentPassword) {
+      setError("Please fill in both email and password.");
+      return;
+    }
+
+    setError("");
+    setInfo("");
+    setLoading(true);
+
     try {
-      if (mode === "register") {
-        const { error: e } = await supabase.auth.signUp({ email, password });
-        if (e) { setError(e.message); }
-        else { setInfo("Check your email to confirm your account!"); }
+      if (currentMode === "register") {
+        const { error: e } = await supabase.auth.signUp({
+          email: currentEmail,
+          password: currentPassword,
+        });
+        if (e) {
+          setError(e.message);
+        } else {
+          setInfo("Check your email to confirm your account!");
+        }
       } else {
-        const { data, error: e } = await supabase.auth.signInWithPassword({ email, password });
-        if (e) { setError(e.message); }
-        else { onSuccess(data.user); }
+        const { data, error: e } = await supabase.auth.signInWithPassword({
+          email: currentEmail,
+          password: currentPassword,
+        });
+        if (e) {
+          setError(e.message);
+        } else if (data?.user) {
+          onSuccess(data.user);
+        } else {
+          setError("Login failed. Please try again.");
+        }
       }
-    } catch(e) { setError("Something went wrong."); }
+    } catch (e) {
+      setError("Something went wrong. Please try again.");
+    }
+
     setLoading(false);
   };
 
@@ -1222,6 +1007,8 @@ function AuthModal({ t, C, onClose, onSuccess }) {
     if (e) setError(e.message);
   };
 
+  const inp = { width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontSize:14, fontFamily:"inherit", marginBottom:10, transition:"border-color .2s" };
+
   return (
     <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,.82)", display:"flex", alignItems:"center", justifyContent:"center", padding:24, zIndex:100, backdropFilter:"blur(8px)" }}>
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:22, padding:28, maxWidth:320, width:"100%" }}>
@@ -1229,20 +1016,37 @@ function AuthModal({ t, C, onClose, onSuccess }) {
           <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>
             {mode === "login" ? "Sign In" : "Create Account"}
           </div>
-          <button onClick={onClose} style={{ color:C.textMuted, fontSize:20 }}>×</button>
+          <button onClick={onClose} style={{ color:C.textMuted, fontSize:22, lineHeight:1, padding:"2px 6px" }}>×</button>
         </div>
 
-        {error && <div style={{ background:"rgba(224,124,124,.15)", border:"1px solid #e07c7c", borderRadius:10, padding:"8px 12px", fontSize:12, color:"#e07c7c", marginBottom:12 }}>{error}</div>}
-        {info  && <div style={{ background:"rgba(126,207,179,.15)", border:`1px solid ${C.mint}`, borderRadius:10, padding:"8px 12px", fontSize:12, color:C.mint, marginBottom:12 }}>{info}</div>}
+        {error && <div style={{ background:"rgba(224,124,124,.15)", border:"1px solid #e07c7c", borderRadius:10, padding:"8px 12px", fontSize:12, color:"#e07c7c", marginBottom:12, lineHeight:1.5 }}>{error}</div>}
+        {info  && <div style={{ background:"rgba(126,207,179,.15)", border:`1px solid ${C.mint}`, borderRadius:10, padding:"8px 12px", fontSize:12, color:C.mint, marginBottom:12, lineHeight:1.5 }}>{info}</div>}
 
-        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" type="email"
-          style={{ width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", color:C.text, fontSize:14, fontFamily:"inherit", marginBottom:10 }} />
-        <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" type="password"
-          onKeyDown={e=>e.key==="Enter"&&handleSubmit()}
-          style={{ width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", color:C.text, fontSize:14, fontFamily:"inherit", marginBottom:16 }} />
+        <input
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleSubmit()}
+          placeholder="Email"
+          type="email"
+          autoComplete="email"
+          style={inp}
+        />
+        <input
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleSubmit()}
+          placeholder="Password"
+          type="password"
+          autoComplete={mode === "register" ? "new-password" : "current-password"}
+          style={{ ...inp, marginBottom:16 }}
+        />
 
-        <button onClick={handleSubmit} disabled={loading} style={{ width:"100%", background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"13px 0", borderRadius:14, marginBottom:10, opacity:loading?0.7:1 }}>
-          {loading ? "..." : mode === "login" ? "Sign In" : "Create Account"}
+        <button
+          onClick={handleSubmit}
+          disabled={loading}
+          style={{ width:"100%", background:loading?"rgba(126,207,179,.4)":C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"13px 0", borderRadius:14, marginBottom:10, cursor:loading?"not-allowed":"pointer", transition:"all .2s" }}
+        >
+          {loading ? "⏳ Loading..." : mode === "login" ? "Sign In" : "Create Account"}
         </button>
 
         <button onClick={handleGoogle} style={{ width:"100%", background:C.surface, border:`1px solid ${C.border}`, color:C.text, fontFamily:"inherit", fontWeight:700, fontSize:13, padding:"11px 0", borderRadius:14, marginBottom:16, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
@@ -1262,85 +1066,273 @@ function AuthModal({ t, C, onClose, onSuccess }) {
 }
 
 // ─── PROFILE ─────────────────────────────────────────────────────────────────
-function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang, supaUser, onShowAuth }) {
-  const [editing, setEditing] = useState(false);
+const AVATAR_EMOJIS = ["🌙","⭐","🌸","🔥","💎","🌊","🦋","🐉","🌿","✨","🎭","🗡️","🪐","🌑","💀","🦊","🐺","🌺","🎪","🔮"];
+
+function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang, supaUser, onShowAuth, followed, likedChars, userProfile, setUserProfile }) {
+  const [activeTab, setActiveTab] = useState("chars"); // chars | liked | following | settings
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editName, setEditName] = useState(userProfile.displayName);
+  const [editBio, setEditBio] = useState(userProfile.bio);
+  const [editAvatar, setEditAvatar] = useState(userProfile.avatarEmoji);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [themeEditing, setThemeEditing] = useState(false);
+
+  // Mock user's own characters
+  const myChars = MOCK_CHARS.filter((_, i) => i < 3); // first 3 as "mine"
+  const myPublicChars = myChars.filter(c => c.visibility === "public");
+  const myPrivateChars = [
+    { id:99, name:"Vesper", desc:"A secret character only you can see", tags:["mystery"], author:"you", color:"#2a1e3a", avatar:"🌑", visibility:"private" },
+  ];
+
+  const likedCharsList = MOCK_CHARS.filter(c => likedChars.includes(c.id));
+  const followedAuthors = [...new Set(MOCK_CHARS.map(c=>c.author))].filter(a => followed.includes(a));
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setIsReg(false);
   };
 
+  const saveProfile = () => {
+    setUserProfile({ displayName: editName, bio: editBio, avatarEmoji: editAvatar });
+    setEditingProfile(false);
+    setShowAvatarPicker(false);
+  };
+
+  const displayName = userProfile.displayName || supaUser?.email?.split("@")[0] || "You";
+
+  const tabStyle = (id) => ({
+    flex:1, padding:"8px 4px", fontSize:10, fontWeight:700, fontFamily:"inherit",
+    color: activeTab===id ? pt.accent : C.textMuted,
+    background: "transparent",
+    borderBottom: `2px solid ${activeTab===id ? pt.accent : "transparent"}`,
+    textTransform:"uppercase", letterSpacing:.5, transition:"all .15s"
+  });
+
+  if (!isReg) return (
+    <div style={{ minHeight:"100%", background:pt.grad, padding:"18px 18px 32px" }}>
+      <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:16, color:pt.accent }}>{t.profile}</div>
+      <div style={{ background:"rgba(28,30,33,.85)", border:`1px solid ${C.border}`, borderRadius:20, padding:24, textAlign:"center", backdropFilter:"blur(8px)" }}>
+        <div style={{ fontSize:44, marginBottom:12 }}>✦</div>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:17, marginBottom:8 }}>Join IDK ai</div>
+        <div style={{ color:C.textMuted, fontSize:13, marginBottom:20, lineHeight:1.6 }}>Create a free account to save characters, follow creators, and enjoy unlimited roleplay.</div>
+        <button onClick={onShowAuth} style={{ width:"100%", background:pt.accent, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"13px 0", borderRadius:14 }}>Create Account — it's free</button>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ minHeight:"100%", background:pt.grad }}>
-      <div style={{ padding:"18px 18px 32px" }}>
-        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:16, color:pt.accent }}>{t.profile}</div>
+      {/* Profile Header */}
+      <div style={{ padding:"18px 18px 0", position:"relative" }}>
+        {/* Cover gradient */}
+        <div style={{ position:"absolute", top:0, left:0, right:0, height:100, background:`linear-gradient(180deg, ${pt.accent}22 0%, transparent 100%)`, pointerEvents:"none" }} />
 
-        {!isReg ? (
-          <div style={{ background:"rgba(28,30,33,.85)", border:`1px solid ${C.border}`, borderRadius:20, padding:24, textAlign:"center", backdropFilter:"blur(8px)" }}>
-            <div style={{ fontSize:44, marginBottom:12 }}>✦</div>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:17, marginBottom:8 }}>Join IDK ai</div>
-            <div style={{ color:C.textMuted, fontSize:13, marginBottom:20, lineHeight:1.6 }}>Create a free account to save characters, follow creators, and enjoy unlimited roleplay.</div>
-            <button onClick={onShowAuth} style={{ width:"100%", background:pt.accent, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"13px 0", borderRadius:14 }}>Create Account — it's free</button>
-          </div>
-        ) : (
-          <>
-            <div style={{ background:"rgba(28,30,33,.85)", border:`1px solid ${C.border}`, borderRadius:20, padding:18, display:"flex", alignItems:"center", gap:14, marginBottom:12, backdropFilter:"blur(8px)" }}>
-              <div style={{ width:56, height:56, borderRadius:"50%", background:"rgba(255,255,255,.05)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, border:`2px solid ${pt.accent}` }}>🌙</div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:16 }}>{supaUser?.email?.split("@")[0] || "You"}</div>
-                <div style={{ fontSize:12, color:pt.accent }}>{supaUser?.email || "Registered member"}</div>
-              </div>
-              <div style={{ display:"flex", gap:6 }}>
-                <button onClick={()=>setEditing(e=>!e)} style={{ fontSize:11, color:pt.accent, padding:"5px 12px", borderRadius:20, border:`1px solid ${pt.accent}`, fontFamily:"inherit", fontWeight:700 }}>🎨</button>
-                <button onClick={handleLogout} style={{ fontSize:11, color:C.danger, padding:"5px 12px", borderRadius:20, border:`1px solid ${C.danger}`, fontFamily:"inherit", fontWeight:700 }}>Exit</button>
-              </div>
+        <div style={{ position:"relative", display:"flex", alignItems:"flex-end", gap:14, marginBottom:14 }}>
+          {/* Avatar */}
+          <div style={{ position:"relative" }}>
+            <div style={{ width:72, height:72, borderRadius:"50%", background:`rgba(255,255,255,.05)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, border:`3px solid ${pt.accent}`, boxShadow:`0 0 20px ${pt.accent}44` }}>
+              {userProfile.avatarEmoji}
             </div>
-
-            {editing && (
-              <div style={{ background:"rgba(28,30,33,.9)", border:`1px solid ${C.border}`, borderRadius:18, padding:14, marginBottom:12, backdropFilter:"blur(8px)" }}>
-
-                <div style={{ fontSize:11, color:C.textMuted, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>{t.profileStyle}</div>
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:18 }}>
-                  {PROFILE_THEMES.map(theme=>(
-                    <button key={theme.id} onClick={()=>setProfileTheme(theme.id)} style={{ padding:"10px 4px", borderRadius:12, border:`1.5px solid ${profileTheme===theme.id?theme.accent:C.border}`, background:profileTheme===theme.id?"rgba(255,255,255,.05)":C.card, color:profileTheme===theme.id?theme.accent:C.textMuted, fontFamily:"inherit", fontSize:11, fontWeight:700, display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
-                      <div style={{ width:22, height:22, borderRadius:"50%", background:theme.accent }} />
-                      {theme.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div style={{ fontSize:11, color:C.textMuted, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>
-                  {lang==="ru"?"Розмір тексту та відповідей":"Text size & response length"}
-                </div>
-
-                <div style={{ background:"rgba(28,30,33,.95)", border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 14px", marginBottom:12, fontSize:ts.fontSize, lineHeight:ts.lineHeight, color:C.text }}>
-                  <span style={{ color:pt.accent, fontWeight:700, fontSize:ts.fontSize-1 }}>Aelindra{"  "}</span>
-                  <span style={{ fontStyle:"italic", color:C.textMuted }}>*turns slowly, eyes glinting.*</span>
-                  {" "}"You dare approach me?{(textScale==="lg"||textScale==="xl") ? " I haven't let anyone this close in a very long time." : ""}"
-                </div>
-
-                <div style={{ display:"flex", gap:6 }}>
-                  {Object.entries(TEXT_SCALES).map(([key, val])=>(
-                    <button key={key} onClick={()=>setTextScale(key)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4, padding:"10px 4px", borderRadius:12, border:`1.5px solid ${textScale===key?pt.accent:C.border}`, background:textScale===key?"rgba(255,255,255,.05)":C.card, color:textScale===key?pt.accent:C.textMuted, fontFamily:"inherit", fontWeight:700, transition:"all .15s" }}>
-                      <span style={{ fontSize: val.fontSize, lineHeight:1 }}>Aa</span>
-                      <span style={{ fontSize:10 }}>{val.label}</span>
-                    </button>
-                  ))}
-                </div>
-                <div style={{ fontSize:11, color:C.textDim, marginTop:8, textAlign:"center" }}>{ts.desc}</div>
-              </div>
+            {editingProfile && (
+              <button onClick={()=>setShowAvatarPicker(s=>!s)} style={{ position:"absolute", bottom:0, right:0, background:pt.accent, borderRadius:"50%", width:22, height:22, fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", color:C.bg }}>✏</button>
             )}
+          </div>
+          <div style={{ flex:1, paddingBottom:4 }}>
+            {editingProfile ? (
+              <input value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Display name" style={{ background:"transparent", border:`1px solid ${pt.accent}`, borderRadius:8, padding:"4px 10px", color:C.text, fontSize:15, fontFamily:"'Syne',sans-serif", fontWeight:700, width:"100%", marginBottom:4 }} />
+            ) : (
+              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:16 }}>{displayName}</div>
+            )}
+            <div style={{ fontSize:11, color:pt.accent }}>{supaUser?.email}</div>
+          </div>
+          <div style={{ display:"flex", gap:6, paddingBottom:4 }}>
+            {editingProfile ? (
+              <>
+                <button onClick={saveProfile} style={{ fontSize:11, color:C.bg, padding:"5px 12px", borderRadius:20, background:pt.accent, fontFamily:"inherit", fontWeight:700 }}>Save</button>
+                <button onClick={()=>setEditingProfile(false)} style={{ fontSize:11, color:C.textMuted, padding:"5px 10px", borderRadius:20, border:`1px solid ${C.border}`, fontFamily:"inherit" }}>✕</button>
+              </>
+            ) : (
+              <>
+                <button onClick={()=>{ setEditName(userProfile.displayName); setEditBio(userProfile.bio); setEditAvatar(userProfile.avatarEmoji); setEditingProfile(true); }} style={{ fontSize:11, color:pt.accent, padding:"5px 12px", borderRadius:20, border:`1px solid ${pt.accent}`, fontFamily:"inherit", fontWeight:700 }}>✏ Edit</button>
+                <button onClick={handleLogout} style={{ fontSize:11, color:C.danger, padding:"5px 10px", borderRadius:20, border:`1px solid ${C.danger}`, fontFamily:"inherit", fontWeight:700 }}>Exit</button>
+              </>
+            )}
+          </div>
+        </div>
 
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-              {[["0","Characters"],["0","Followers"],["0","Following"],["∞","Messages"]].map(([val,label])=>(
-                <div key={label} style={{ background:"rgba(28,30,33,.85)", border:`1px solid ${C.border}`, borderRadius:16, padding:"13px 14px", backdropFilter:"blur(8px)" }}>
-                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:22, color:pt.accent }}>{val}</div>
-                  <div style={{ fontSize:11, color:C.textMuted, marginTop:2 }}>{label}</div>
-                </div>
+        {/* Avatar emoji picker */}
+        {showAvatarPicker && (
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:12, marginBottom:12, display:"flex", flexWrap:"wrap", gap:8, justifyContent:"center" }}>
+            {AVATAR_EMOJIS.map(em => (
+              <button key={em} onClick={()=>{ setEditAvatar(em); setShowAvatarPicker(false); }} style={{ fontSize:26, width:44, height:44, borderRadius:12, border:`2px solid ${editAvatar===em?pt.accent:C.border}`, background:editAvatar===em?C.mintPale:C.surface, display:"flex", alignItems:"center", justifyContent:"center" }}>{em}</button>
+            ))}
+          </div>
+        )}
+
+        {/* Bio */}
+        {editingProfile ? (
+          <textarea value={editBio} onChange={e=>setEditBio(e.target.value)} placeholder="Write something about yourself..." rows={2} style={{ width:"100%", background:"rgba(28,30,33,.7)", border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 12px", color:C.text, fontSize:12, fontFamily:"inherit", resize:"none", lineHeight:1.5, marginBottom:14 }} />
+        ) : userProfile.bio ? (
+          <div style={{ fontSize:12, color:C.textMuted, lineHeight:1.6, marginBottom:14 }}>{userProfile.bio}</div>
+        ) : null}
+
+        {/* Stats row */}
+        <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+          {[
+            [myChars.length + myPrivateChars.length, "Characters"],
+            [likedCharsList.length, "Liked"],
+            [followedAuthors.length, "Following"],
+            ["∞", "Messages"],
+          ].map(([val, label]) => (
+            <div key={label} style={{ flex:1, background:"rgba(28,30,33,.7)", border:`1px solid ${C.border}`, borderRadius:14, padding:"10px 8px", textAlign:"center", backdropFilter:"blur(8px)" }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18, color:pt.accent }}>{val}</div>
+              <div style={{ fontSize:9, color:C.textMuted, marginTop:1, textTransform:"uppercase", letterSpacing:.4, fontWeight:600 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display:"flex", borderBottom:`1px solid ${C.border}`, background:"rgba(14,15,17,.6)", backdropFilter:"blur(8px)", position:"sticky", top:0, zIndex:10 }}>
+        <button style={tabStyle("chars")} onClick={()=>setActiveTab("chars")}>🎭 My Chars</button>
+        <button style={tabStyle("liked")} onClick={()=>setActiveTab("liked")}>❤️ Liked</button>
+        <button style={tabStyle("following")} onClick={()=>setActiveTab("following")}>👥 Following</button>
+        <button style={tabStyle("settings")} onClick={()=>setActiveTab("settings")}>⚙️ Style</button>
+      </div>
+
+      <div style={{ padding:"14px 16px 32px" }}>
+
+        {/* MY CHARACTERS TAB */}
+        {activeTab === "chars" && (
+          <div>
+            {/* Public */}
+            <div style={{ fontSize:11, color:pt.accent, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10, display:"flex", alignItems:"center", gap:8 }}>
+              🌍 Public · {myPublicChars.length}
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:18 }}>
+              {myPublicChars.map(char => (
+                <MiniCharCard key={char.id} char={char} pt={pt} />
               ))}
             </div>
-          </>
+
+            {/* Private */}
+            <div style={{ fontSize:11, color:C.textMuted, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10, display:"flex", alignItems:"center", gap:8 }}>
+              🔒 Private · {myPrivateChars.length}
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              {myPrivateChars.map(char => (
+                <MiniCharCard key={char.id} char={char} pt={pt} isPrivate />
+              ))}
+            </div>
+
+            {myPublicChars.length === 0 && myPrivateChars.length === 0 && (
+              <div style={{ textAlign:"center", color:C.textMuted, padding:"30px 0", fontSize:13 }}>No characters yet. Create your first!</div>
+            )}
+          </div>
         )}
+
+        {/* LIKED TAB */}
+        {activeTab === "liked" && (
+          <div>
+            {likedCharsList.length === 0 ? (
+              <div style={{ textAlign:"center", color:C.textMuted, padding:"30px 0", fontSize:13 }}>
+                <div style={{ fontSize:32, marginBottom:10 }}>🤍</div>
+                No liked characters yet.<br/>Tap the heart on any character!
+              </div>
+            ) : (
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                {likedCharsList.map(char => (
+                  <MiniCharCard key={char.id} char={char} pt={pt} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* FOLLOWING TAB */}
+        {activeTab === "following" && (
+          <div>
+            {followedAuthors.length === 0 ? (
+              <div style={{ textAlign:"center", color:C.textMuted, padding:"30px 0", fontSize:13 }}>
+                <div style={{ fontSize:32, marginBottom:10 }}>👥</div>
+                Not following anyone yet.<br/>Follow authors from the home page!
+              </div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {followedAuthors.map(author => {
+                  const authorChars = MOCK_CHARS.filter(c => c.author === author);
+                  return (
+                    <div key={author} style={{ background:"rgba(28,30,33,.85)", border:`1px solid ${C.border}`, borderRadius:16, padding:"12px 14px", backdropFilter:"blur(8px)" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                        <div style={{ width:36, height:36, borderRadius:"50%", background:C.surface, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, border:`2px solid ${pt.accent}` }}>✦</div>
+                        <div>
+                          <div style={{ fontWeight:700, fontSize:13, color:pt.accent }}>@{author}</div>
+                          <div style={{ fontSize:10, color:C.textMuted }}>{authorChars.length} characters</div>
+                        </div>
+                        <div style={{ marginLeft:"auto", fontSize:10, color:C.mint, padding:"3px 10px", borderRadius:20, background:C.mintPale, fontWeight:700 }}>✓ Following</div>
+                      </div>
+                      <div style={{ display:"flex", gap:6, overflowX:"auto" }}>
+                        {authorChars.map(c => (
+                          <div key={c.id} style={{ flexShrink:0, width:48, height:48, borderRadius:12, background:c.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, border:`1px solid ${C.border}` }}>{c.avatar}</div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SETTINGS / STYLE TAB */}
+        {activeTab === "settings" && (
+          <div>
+            <div style={{ fontSize:11, color:C.textMuted, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>{t.profileStyle}</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:20 }}>
+              {PROFILE_THEMES.map(theme=>(
+                <button key={theme.id} onClick={()=>setProfileTheme(theme.id)} style={{ padding:"10px 4px", borderRadius:12, border:`1.5px solid ${profileTheme===theme.id?theme.accent:C.border}`, background:profileTheme===theme.id?"rgba(255,255,255,.05)":C.card, color:profileTheme===theme.id?theme.accent:C.textMuted, fontFamily:"inherit", fontSize:11, fontWeight:700, display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+                  <div style={{ width:22, height:22, borderRadius:"50%", background:theme.accent }} />
+                  {theme.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ fontSize:11, color:C.textMuted, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>
+              Text size & response length
+            </div>
+
+            <div style={{ background:"rgba(28,30,33,.95)", border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 14px", marginBottom:12, fontSize:ts.fontSize, lineHeight:ts.lineHeight, color:C.text }}>
+              <span style={{ color:pt.accent, fontWeight:700, fontSize:ts.fontSize-1 }}>Aelindra{"  "}</span>
+              <span style={{ fontStyle:"italic", color:C.textMuted }}>*turns slowly, eyes glinting.*</span>
+              {" "}"You dare approach me?{(textScale==="lg"||textScale==="xl") ? " I haven't let anyone this close in a very long time." : ""}"
+            </div>
+
+            <div style={{ display:"flex", gap:6 }}>
+              {Object.entries(TEXT_SCALES).map(([key, val])=>(
+                <button key={key} onClick={()=>setTextScale(key)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4, padding:"10px 4px", borderRadius:12, border:`1.5px solid ${textScale===key?pt.accent:C.border}`, background:textScale===key?"rgba(255,255,255,.05)":C.card, color:textScale===key?pt.accent:C.textMuted, fontFamily:"inherit", fontWeight:700, transition:"all .15s" }}>
+                  <span style={{ fontSize: val.fontSize, lineHeight:1 }}>Aa</span>
+                  <span style={{ fontSize:10 }}>{val.label}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize:11, color:C.textDim, marginTop:8, textAlign:"center" }}>{ts.desc}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MiniCharCard({ char, pt, isPrivate }) {
+  return (
+    <div style={{ background:"rgba(28,30,33,.85)", border:`1px solid ${isPrivate ? "#4a4f57" : C.border}`, borderRadius:14, overflow:"hidden", backdropFilter:"blur(8px)" }}>
+      <div style={{ background:char.color, height:60, display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, position:"relative" }}>
+        {char.avatar}
+        {isPrivate && <div style={{ position:"absolute", top:6, right:6, fontSize:10, background:"rgba(0,0,0,.6)", borderRadius:20, padding:"2px 6px" }}>🔒</div>}
+      </div>
+      <div style={{ padding:"8px 10px" }}>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:12, marginBottom:2, color:isPrivate?C.textMuted:C.text }}>{char.name}</div>
+        <div style={{ fontSize:10, color:C.textDim, lineHeight:1.4, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{char.desc}</div>
       </div>
     </div>
   );
