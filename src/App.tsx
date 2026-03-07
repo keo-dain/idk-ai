@@ -1,4 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const SUPABASE_URL = "https://oigwwlhdjqjmrozobmln.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ3d3bGhkanFqbXJvem9ibWxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MzkxOTMsImV4cCI6MjA4ODQxNTE5M30.B2z9eq0UC0S7Ez20ubeoyoSdtHiprLNJf6FHGhSzJ5I";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const C = {
   bg: "#0e0f11", surface: "#161719", card: "#1c1e21", cardHover: "#222427",
@@ -280,7 +285,19 @@ export default function App() {
   const [groupChars, setGroupChars] = useState([]);
   const [profileTheme, setProfileTheme] = useState("mint");
   const [textScale, setTextScale] = useState("md");
+  const [supaUser, setSupaUser] = useState(null);
   const t = T[lang];
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) { setSupaUser(session.user); setIsReg(true); }
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) { setSupaUser(session.user); setIsReg(true); }
+      else { setSupaUser(null); setIsReg(false); }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
   const pt = PROFILE_THEMES.find(p => p.id === profileTheme) || PROFILE_THEMES[0];
 
   // Text scale config: fontSize for chat bubbles + response length modifier
@@ -618,7 +635,7 @@ export default function App() {
         {page==="home"    && <HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} />}
         {page==="create"  && <CreatePage  t={t} lang={lang} />}
         {page==="chats"   && <ChatsPage   t={t} chats={chats} setActiveChat={setActiveChat} setPage={setPage} ts={ts} />}
-        {page==="profile" && <ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} />}
+        {page==="profile" && <ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} />}
         {page==="chat" && activeChat && <ChatPage t={t} chat={activeChat} onSend={sendMessage} onBack={() => setPage("chats")} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} />}
       </div>
 
@@ -644,15 +661,12 @@ export default function App() {
       )}
 
       {showReg && (
-        <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,.78)", display:"flex", alignItems:"center", justifyContent:"center", padding:24, zIndex:100, backdropFilter:"blur(6px)" }}>
-          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:22, padding:28, maxWidth:320, width:"100%", textAlign:"center" }}>
-            <div style={{ fontSize:44, marginBottom:12 }}>🔒</div>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:17, marginBottom:8 }}>{t.registerPrompt}</div>
-            <div style={{ color:C.textMuted, fontSize:13, marginBottom:22, lineHeight:1.6 }}>Register free for unlimited messages, saved chats, and custom characters.</div>
-            <button onClick={() => { setIsReg(true); setShowReg(false); }} style={{ width:"100%", background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"13px 0", borderRadius:14, marginBottom:10 }}>{t.registerNow}</button>
-            <button onClick={() => setShowReg(false)} style={{ color:C.textMuted, fontSize:13, fontFamily:"inherit" }}>{t.later}</button>
-          </div>
-        </div>
+        <AuthModal
+          t={t}
+          C={C}
+          onClose={() => setShowReg(false)}
+          onSuccess={(user) => { setIsReg(true); setShowReg(false); }}
+        />
       )}
     </div>
   );
@@ -1177,9 +1191,84 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
   );
 }
 
+// ─── AUTH MODAL ──────────────────────────────────────────────────────────────
+function AuthModal({ t, C, onClose, onSuccess }) {
+  const [mode, setMode] = useState("login"); // "login" | "register"
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+
+  const handleSubmit = async () => {
+    setError(""); setInfo(""); setLoading(true);
+    try {
+      if (mode === "register") {
+        const { error: e } = await supabase.auth.signUp({ email, password });
+        if (e) { setError(e.message); }
+        else { setInfo("Check your email to confirm your account!"); }
+      } else {
+        const { data, error: e } = await supabase.auth.signInWithPassword({ email, password });
+        if (e) { setError(e.message); }
+        else { onSuccess(data.user); }
+      }
+    } catch(e) { setError("Something went wrong."); }
+    setLoading(false);
+  };
+
+  const handleGoogle = async () => {
+    setError("");
+    const { error: e } = await supabase.auth.signInWithOAuth({ provider: "google" });
+    if (e) setError(e.message);
+  };
+
+  return (
+    <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,.82)", display:"flex", alignItems:"center", justifyContent:"center", padding:24, zIndex:100, backdropFilter:"blur(8px)" }}>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:22, padding:28, maxWidth:320, width:"100%" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>
+            {mode === "login" ? "Sign In" : "Create Account"}
+          </div>
+          <button onClick={onClose} style={{ color:C.textMuted, fontSize:20 }}>×</button>
+        </div>
+
+        {error && <div style={{ background:"rgba(224,124,124,.15)", border:"1px solid #e07c7c", borderRadius:10, padding:"8px 12px", fontSize:12, color:"#e07c7c", marginBottom:12 }}>{error}</div>}
+        {info  && <div style={{ background:"rgba(126,207,179,.15)", border:`1px solid ${C.mint}`, borderRadius:10, padding:"8px 12px", fontSize:12, color:C.mint, marginBottom:12 }}>{info}</div>}
+
+        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" type="email"
+          style={{ width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", color:C.text, fontSize:14, fontFamily:"inherit", marginBottom:10 }} />
+        <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" type="password"
+          onKeyDown={e=>e.key==="Enter"&&handleSubmit()}
+          style={{ width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", color:C.text, fontSize:14, fontFamily:"inherit", marginBottom:16 }} />
+
+        <button onClick={handleSubmit} disabled={loading} style={{ width:"100%", background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"13px 0", borderRadius:14, marginBottom:10, opacity:loading?0.7:1 }}>
+          {loading ? "..." : mode === "login" ? "Sign In" : "Create Account"}
+        </button>
+
+        <button onClick={handleGoogle} style={{ width:"100%", background:C.surface, border:`1px solid ${C.border}`, color:C.text, fontFamily:"inherit", fontWeight:700, fontSize:13, padding:"11px 0", borderRadius:14, marginBottom:16, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+          <span style={{ fontSize:16 }}>G</span> Continue with Google
+        </button>
+
+        <div style={{ textAlign:"center", fontSize:12, color:C.textMuted }}>
+          {mode === "login" ? "No account? " : "Have an account? "}
+          <button onClick={()=>{setMode(m=>m==="login"?"register":"login");setError("");setInfo("");}}
+            style={{ color:C.mint, fontWeight:700, fontFamily:"inherit", fontSize:12 }}>
+            {mode === "login" ? "Sign up" : "Sign in"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── PROFILE ─────────────────────────────────────────────────────────────────
-function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang }) {
+function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang, supaUser, onShowAuth }) {
   const [editing, setEditing] = useState(false);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setIsReg(false);
+  };
 
   return (
     <div style={{ minHeight:"100%", background:pt.grad }}>
@@ -1191,17 +1280,20 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
             <div style={{ fontSize:44, marginBottom:12 }}>✦</div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:17, marginBottom:8 }}>Join IDK ai</div>
             <div style={{ color:C.textMuted, fontSize:13, marginBottom:20, lineHeight:1.6 }}>Create a free account to save characters, follow creators, and enjoy unlimited roleplay.</div>
-            <button onClick={()=>setIsReg(true)} style={{ width:"100%", background:pt.accent, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"13px 0", borderRadius:14 }}>Create Account — it's free</button>
+            <button onClick={onShowAuth} style={{ width:"100%", background:pt.accent, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"13px 0", borderRadius:14 }}>Create Account — it's free</button>
           </div>
         ) : (
           <>
             <div style={{ background:"rgba(28,30,33,.85)", border:`1px solid ${C.border}`, borderRadius:20, padding:18, display:"flex", alignItems:"center", gap:14, marginBottom:12, backdropFilter:"blur(8px)" }}>
               <div style={{ width:56, height:56, borderRadius:"50%", background:"rgba(255,255,255,.05)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, border:`2px solid ${pt.accent}` }}>🌙</div>
               <div style={{ flex:1 }}>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:16 }}>You</div>
-                <div style={{ fontSize:12, color:pt.accent }}>Registered member</div>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:16 }}>{supaUser?.email?.split("@")[0] || "You"}</div>
+                <div style={{ fontSize:12, color:pt.accent }}>{supaUser?.email || "Registered member"}</div>
               </div>
-              <button onClick={()=>setEditing(e=>!e)} style={{ fontSize:11, color:pt.accent, padding:"5px 12px", borderRadius:20, border:`1px solid ${pt.accent}`, fontFamily:"inherit", fontWeight:700 }}>🎨</button>
+              <div style={{ display:"flex", gap:6 }}>
+                <button onClick={()=>setEditing(e=>!e)} style={{ fontSize:11, color:pt.accent, padding:"5px 12px", borderRadius:20, border:`1px solid ${pt.accent}`, fontFamily:"inherit", fontWeight:700 }}>🎨</button>
+                <button onClick={handleLogout} style={{ fontSize:11, color:C.danger, padding:"5px 12px", borderRadius:20, border:`1px solid ${C.danger}`, fontFamily:"inherit", fontWeight:700 }}>Exit</button>
+              </div>
             </div>
 
             {editing && (
