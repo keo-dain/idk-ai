@@ -288,6 +288,12 @@ export default function App() {
   const [supaUser, setSupaUser] = useState(null);
   // User profile data
   const [userProfile, setUserProfile] = useState({ displayName: "", bio: "", avatarEmoji: "🌙" });
+  const [myCharsDB, setMyCharsDB] = useState([]);
+
+  const loadMyChars = async (userId) => {
+    const { data } = await supabase.from("characters").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+    if (data) setMyCharsDB(data);
+  };
   const t = T[lang];
 
   const loadUserData = async (user) => {
@@ -310,11 +316,11 @@ export default function App() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) { setSupaUser(session.user); setIsReg(true); loadUserData(session.user); }
+      if (session?.user) { setSupaUser(session.user); setIsReg(true); loadUserData(session.user); loadMyChars(session.user.id); }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) { setSupaUser(session.user); setIsReg(true); loadUserData(session.user); }
-      else { setSupaUser(null); setIsReg(false); setLikedChars([]); setFollowed([]); setUserProfile({ displayName:"", bio:"", avatarEmoji:"🌙" }); }
+      if (session?.user) { setSupaUser(session.user); setIsReg(true); loadUserData(session.user); loadMyChars(session.user.id); }
+      else { setSupaUser(null); setIsReg(false); setLikedChars([]); setFollowed([]); setUserProfile({ displayName:"", bio:"", avatarEmoji:"🌙" }); setMyCharsDB([]); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -467,9 +473,9 @@ export default function App() {
 
       <div style={{ flex:1, overflowY:"auto", overflowX:"hidden" }}>
         {page==="home"    && <HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} likedChars={likedChars} setLikedChars={setLikedChars} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} />}
-        {page==="create"  && <CreatePage  t={t} lang={lang} />}
+        {page==="create"  && <CreatePage  t={t} lang={lang} supaUser={supaUser} onCharCreated={()=>supaUser&&loadMyChars(supaUser.id)} />}
         {page==="chats"   && <ChatsPage   t={t} chats={chats} setActiveChat={setActiveChat} setPage={setPage} ts={ts} />}
-        {page==="profile" && <ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} />}
+        {page==="profile" && <ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} />}
         {page==="chat" && activeChat && <ChatPage t={t} chat={activeChat} onSend={sendMessage} onBack={() => setPage("chats")} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} />}
       </div>
 
@@ -631,7 +637,7 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
 }
 
 // ─── CREATE ──────────────────────────────────────────────────────────────────
-function CreatePage({ t, lang }) {
+function CreatePage({ t, lang, supaUser, onCharCreated }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [personality, setPersonality] = useState("");
@@ -648,6 +654,42 @@ function CreatePage({ t, lang }) {
   const [autoOptions, setAutoOptions] = useState([]);
   const [autoLoading, setAutoLoading] = useState(false);
   const [showAuto, setShowAuto] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [published, setPublished] = useState(false);
+
+  const CHAR_COLORS = ["#2d4a3e","#1e2a3a","#2a1e3a","#3a2a1e","#3a1e2a","#1e3a2a","#1a2a3a","#2a1a3a"];
+  const CHAR_AVATARS = ["🧝‍♀️","🕵️","🤖","⚔️","🌸","🌑","💻","🪶","🐉","🦋","🔮","🌙","⭐","🦊","🐺"];
+
+  const handlePublish = async () => {
+    if (!name.trim()) { alert("Please add a character name!"); return; }
+    if (!supaUser) { alert("Please sign in to publish characters!"); return; }
+    setPublishing(true);
+    const randomColor = CHAR_COLORS[Math.floor(Math.random() * CHAR_COLORS.length)];
+    const randomAvatar = CHAR_AVATARS[Math.floor(Math.random() * CHAR_AVATARS.length)];
+    const { error } = await supabase.from("characters").insert({
+      user_id: supaUser.id,
+      name: name.trim(),
+      description: desc.trim(),
+      personality: personality.trim(),
+      first_message: firstMsg.trim(),
+      memory: memory.trim(),
+      tags: tags.split(",").map(t=>t.trim()).filter(Boolean),
+      visibility,
+      avatar_emoji: randomAvatar,
+      avatar_color: randomColor,
+      response_size: size,
+      tone,
+      censorship: censor,
+    });
+    if (error) { alert("Error: " + error.message); }
+    else {
+      setPublished(true);
+      setName(""); setDesc(""); setPersonality(""); setFirstMsg(""); setMemory(""); setTags("");
+      onCharCreated?.();
+      setTimeout(() => setPublished(false), 3000);
+    }
+    setPublishing(false);
+  };
 
   const THEMES_PRESET = lang==="ru"
     ? ["фентезі","кіберпанк","романтика","жах","містика","пригоди","наукова фантастика","темне фентезі","сучасна драма","постапокаліпсис"]
@@ -778,7 +820,7 @@ function CreatePage({ t, lang }) {
         </Fld>
         <div style={{ display:"flex", gap:10, marginTop:4 }}>
           <button onClick={()=>setSaved(true)} style={{ flex:1, padding:"11px", borderRadius:14, border:`1px solid ${C.border}`, background:C.card, color:C.textMuted, fontFamily:"inherit", fontWeight:600, fontSize:13 }}>{saved?"✓":t.save}</button>
-          <button style={{ flex:2, padding:"11px", borderRadius:14, background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14 }}>{t.publish}</button>
+          <button onClick={handlePublish} disabled={publishing} style={{ flex:2, padding:"11px", borderRadius:14, background:published?"#4a9e85":C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, opacity:publishing?0.7:1 }}>{publishing?"⏳...":published?"✓ Published!":t.publish}</button>
         </div>
       </div>
     </div>
@@ -1100,7 +1142,7 @@ function AuthModal({ t, C, onClose, onSuccess }) {
 // ─── PROFILE ─────────────────────────────────────────────────────────────────
 const AVATAR_EMOJIS = ["🌙","⭐","🌸","🔥","💎","🌊","🦋","🐉","🌿","✨","🎭","🗡️","🪐","🌑","💀","🦊","🐺","🌺","🎪","🔮"];
 
-function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang, supaUser, onShowAuth, followed, likedChars, userProfile, setUserProfile }) {
+function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang, supaUser, onShowAuth, followed, likedChars, userProfile, setUserProfile, myCharsDB }) {
   const [activeTab, setActiveTab] = useState("chars");
   const [editingProfile, setEditingProfile] = useState(false);
   const [editName, setEditName] = useState(userProfile.displayName);
@@ -1127,12 +1169,10 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
     setUploadingPhoto(false);
   };
 
-  // Mock user's own characters
-  const myChars = MOCK_CHARS.filter((_, i) => i < 3); // first 3 as "mine"
-  const myPublicChars = myChars.filter(c => c.visibility === "public");
-  const myPrivateChars = [
-    { id:99, name:"Vesper", desc:"A secret character only you can see", tags:["mystery"], author:"you", color:"#2a1e3a", avatar:"🌑", visibility:"private" },
-  ];
+  // Real user characters from DB
+  const myPublicChars = (myCharsDB || []).filter(c => c.visibility === "public");
+  const myPrivateChars = (myCharsDB || []).filter(c => c.visibility === "private");
+  const myChars = [...myPublicChars, ...myPrivateChars];
 
   const likedCharsList = MOCK_CHARS.filter(c => likedChars.includes(c.id));
   const followedAuthors = [...new Set(MOCK_CHARS.map(c=>c.author))].filter(a => followed.includes(a));
@@ -1396,15 +1436,19 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
 }
 
 function MiniCharCard({ char, pt, isPrivate }) {
+  // Support both DB format and mock format
+  const avatar = char.avatar_emoji || char.avatar || "🌟";
+  const color = char.avatar_color || char.color || "#2d4a3e";
+  const desc = char.description || char.desc || "";
   return (
     <div style={{ background:"rgba(28,30,33,.85)", border:`1px solid ${isPrivate ? "#4a4f57" : C.border}`, borderRadius:14, overflow:"hidden", backdropFilter:"blur(8px)" }}>
-      <div style={{ background:char.color, height:60, display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, position:"relative" }}>
-        {char.avatar}
+      <div style={{ background:color, height:60, display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, position:"relative" }}>
+        {avatar}
         {isPrivate && <div style={{ position:"absolute", top:6, right:6, fontSize:10, background:"rgba(0,0,0,.6)", borderRadius:20, padding:"2px 6px" }}>🔒</div>}
       </div>
       <div style={{ padding:"8px 10px" }}>
         <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:12, marginBottom:2, color:isPrivate?C.textMuted:C.text }}>{char.name}</div>
-        <div style={{ fontSize:10, color:C.textDim, lineHeight:1.4, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{char.desc}</div>
+        <div style={{ fontSize:10, color:C.textDim, lineHeight:1.4, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{desc}</div>
       </div>
     </div>
   );
