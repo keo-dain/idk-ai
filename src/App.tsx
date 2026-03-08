@@ -1605,7 +1605,7 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
   const tabStyle = (id) => ({ flex:1, padding:"8px 4px", fontSize:10, fontWeight:700, fontFamily:"inherit", color:activeTab===id?pt.accent:C.textMuted, background:"transparent", borderBottom:`2px solid ${activeTab===id?pt.accent:"transparent"}`, textTransform:"uppercase", letterSpacing:.5, transition:"all .15s" });
 
   if (!isReg) return (
-    <div style={{ , background:pt.grad, padding:"14px 18px 32px" }}>
+    <div style={{ background:pt.grad, padding:"14px 18px 32px" }}>
       <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:16, color:pt.accent }}>{t.profile}</div>
       <div style={{ background:"rgba(28,30,33,.85)", border:`1px solid ${C.border}`, borderRadius:20, padding:24, textAlign:"center", backdropFilter:"blur(8px)" }}>
         <div style={{ fontSize:44, marginBottom:12 }}>✦</div>
@@ -1617,7 +1617,7 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
   );
 
   return (
-    <div style={{ , background:pt.grad }}>
+    <div style={{ background:pt.grad }}>
       <div style={{ padding:"18px 18px 0", position:"relative" }}>
         <div style={{ position:"absolute", top:0, left:0, right:0, height:100, background:`linear-gradient(180deg, ${pt.accent}22 0%, transparent 100%)`, pointerEvents:"none" }} />
         <div style={{ position:"relative", display:"flex", alignItems:"flex-end", gap:14, marginBottom:14 }}>
