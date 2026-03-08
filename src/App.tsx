@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = "https://oigwwlhdjqjmrozobmln.supabase.co";
@@ -33,6 +33,8 @@ const T = {
     toneLabel:"Default tone", editMsg:"Edit", regenerate:"Retry",
     wallpaper:"Chat wallpaper", profileStyle:"Profile theme", saveStyle:"Save",
     chatSettings:"Chat settings", startChat:"Begin Story",
+    continueChat:"Continue", lastUsed:"Last used", newChat:"New Chat",
+    deleteChat:"Delete", msgs:"messages",
   },
   ru: {
     home:"Главная", create:"Создать", chats:"Чаты", profile:"Профиль",
@@ -54,6 +56,8 @@ const T = {
     toneLabel:"Тон по умолчанию", editMsg:"Изменить", regenerate:"Переписать",
     wallpaper:"Обои чата", profileStyle:"Тема профиля", saveStyle:"Сохранить",
     chatSettings:"Настройки чата", startChat:"Начать историю",
+    continueChat:"Продовжити", lastUsed:"Останній раз", newChat:"Новий чат",
+    deleteChat:"Видалити", msgs:"повід",
   },
   uk: {
     home:"Головна", create:"Створити", chats:"Чати", profile:"Профіль",
@@ -75,6 +79,8 @@ const T = {
     toneLabel:"Тон за замовчуванням", editMsg:"Змінити", regenerate:"Переписати",
     wallpaper:"Шпалери чату", profileStyle:"Тема профілю", saveStyle:"Зберегти",
     chatSettings:"Налаштування чату", startChat:"Почати історію",
+    continueChat:"Продовжити", lastUsed:"Востаннє", newChat:"Новий чат",
+    deleteChat:"Видалити", msgs:"повід",
   },
   de: {
     home:"Start", create:"Erstellen", chats:"Chats", profile:"Profil",
@@ -96,6 +102,8 @@ const T = {
     toneLabel:"Standard-Ton", editMsg:"Bearbeiten", regenerate:"Neu schreiben",
     wallpaper:"Chat-Hintergrund", profileStyle:"Profilthema", saveStyle:"Speichern",
     chatSettings:"Chat-Einstellungen", startChat:"Geschichte beginnen",
+    continueChat:"Weiter", lastUsed:"Zuletzt", newChat:"Neuer Chat",
+    deleteChat:"Löschen", msgs:"Nachr",
   },
   it: {
     home:"Home", create:"Crea", chats:"Chat", profile:"Profilo",
@@ -117,6 +125,8 @@ const T = {
     toneLabel:"Tono predefinito", editMsg:"Modifica", regenerate:"Riscrivi",
     wallpaper:"Sfondo chat", profileStyle:"Tema profilo", saveStyle:"Salva",
     chatSettings:"Impostazioni chat", startChat:"Inizia la storia",
+    continueChat:"Continua", lastUsed:"Ultimo uso", newChat:"Nuova chat",
+    deleteChat:"Elimina", msgs:"msg",
   },
   fr: {
     home:"Accueil", create:"Créer", chats:"Chats", profile:"Profil",
@@ -138,6 +148,8 @@ const T = {
     toneLabel:"Ton par défaut", editMsg:"Modifier", regenerate:"Réécrire",
     wallpaper:"Fond de chat", profileStyle:"Thème du profil", saveStyle:"Sauvegarder",
     chatSettings:"Paramètres du chat", startChat:"Commencer l'histoire",
+    continueChat:"Continuer", lastUsed:"Dernière fois", newChat:"Nouveau chat",
+    deleteChat:"Supprimer", msgs:"msg",
   },
   es: {
     home:"Inicio", create:"Crear", chats:"Chats", profile:"Perfil",
@@ -159,6 +171,8 @@ const T = {
     toneLabel:"Tono predeterminado", editMsg:"Editar", regenerate:"Reescribir",
     wallpaper:"Fondo de chat", profileStyle:"Tema de perfil", saveStyle:"Guardar",
     chatSettings:"Ajustes del chat", startChat:"Comenzar historia",
+    continueChat:"Continuar", lastUsed:"Último uso", newChat:"Nuevo chat",
+    deleteChat:"Eliminar", msgs:"msg",
   },
   pl: {
     home:"Strona główna", create:"Utwórz", chats:"Czaty", profile:"Profil",
@@ -180,6 +194,8 @@ const T = {
     toneLabel:"Domyślny ton", editMsg:"Edytuj", regenerate:"Przepisz",
     wallpaper:"Tapeta czatu", profileStyle:"Motyw profilu", saveStyle:"Zapisz",
     chatSettings:"Ustawienia czatu", startChat:"Rozpocznij historię",
+    continueChat:"Kontynuuj", lastUsed:"Ostatnio", newChat:"Nowy czat",
+    deleteChat:"Usuń", msgs:"wiad",
   }
 };
 
@@ -249,6 +265,30 @@ const AI_REPLIES = {
   ],
 };
 
+// ─── TIME AGO HELPER ──────────────────────────────────────────────────────────
+function timeAgo(dateStr, lang = "en") {
+  if (!dateStr) return "";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  const labels = {
+    en:  { now:"just now", m:"min ago",  h:"hr ago",  d:"d ago" },
+    uk:  { now:"щойно",    m:"хв тому",  h:"год тому", d:"дн тому" },
+    ru:  { now:"только что", m:"мин назад", h:"ч назад", d:"дн назад" },
+    de:  { now:"gerade",   m:"Min.",     h:"Std.",    d:"T." },
+    it:  { now:"adesso",   m:"min fa",   h:"ore fa",  d:"g fa" },
+    fr:  { now:"maintenant", m:"min",    h:"h",       d:"j" },
+    es:  { now:"ahora",    m:"min",      h:"h",       d:"d" },
+    pl:  { now:"teraz",    m:"min temu", h:"godz. temu", d:"dni temu" },
+  };
+  const l = labels[lang] || labels.en;
+  if (mins < 1)   return l.now;
+  if (mins < 60)  return `${mins} ${l.m}`;
+  if (hours < 24) return `${hours} ${l.h}`;
+  return `${days} ${l.d}`;
+}
+
 async function translateRoleplayText(text, targetLang) {
   const langNames = { en:"English", ru:"Russian", uk:"Ukrainian", de:"German", it:"Italian", fr:"French", es:"Spanish", pl:"Polish" };
   const target = langNames[targetLang] || "English";
@@ -275,8 +315,12 @@ export default function App() {
   const [msgCount, setMsgCount] = useState(0);
   const [showReg, setShowReg] = useState(false);
   const [isReg, setIsReg] = useState(false);
-  const [activeChat, setActiveChat] = useState(null);
-  const [chats, setChats] = useState([]);
+
+  // ── Session state (replaces old "chats") ──────────────────────────────────
+  const [sessions, setSessions]       = useState([]);   // list for ChatsPage
+  const [activeSession, setActiveSession] = useState(null); // { ...session, messages:[] }
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+
   const [search, setSearch] = useState("");
   const [homeTab, setHomeTab] = useState("popular");
   const [followed, setFollowed] = useState([]);
@@ -286,15 +330,45 @@ export default function App() {
   const [profileTheme, setProfileTheme] = useState("mint");
   const [textScale, setTextScale] = useState("md");
   const [supaUser, setSupaUser] = useState(null);
-  // User profile data
   const [userProfile, setUserProfile] = useState({ displayName: "", bio: "", avatarEmoji: "🌙" });
   const [myCharsDB, setMyCharsDB] = useState([]);
+
+  const t = T[lang];
+
+  // ── Load sessions from Supabase ────────────────────────────────────────────
+  const loadSessions = useCallback(async (userId) => {
+    if (!userId) return;
+    setSessionsLoading(true);
+    const { data } = await supabase
+      .from("sessions")
+      .select("*")
+      .eq("user_id", userId)
+      .order("last_used_at", { ascending: false });
+    if (data) setSessions(data);
+    setSessionsLoading(false);
+  }, []);
+
+  // Load messages for a session
+  const loadMessages = async (sessionId) => {
+    const { data } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true });
+    return (data || []).map(m => ({
+      id: m.id,
+      role: m.role,
+      text: m.text,
+      originalText: m.original_text,
+      charName: m.char_name,
+      charAvatar: m.char_avatar,
+    }));
+  };
 
   const loadMyChars = async (userId) => {
     const { data } = await supabase.from("characters").select("*").eq("user_id", userId).order("created_at", { ascending: false });
     if (data) setMyCharsDB(data);
   };
-  const t = T[lang];
 
   const loadUserData = async (user) => {
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
@@ -316,14 +390,29 @@ export default function App() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) { setSupaUser(session.user); setIsReg(true); loadUserData(session.user); loadMyChars(session.user.id); }
+      if (session?.user) {
+        setSupaUser(session.user);
+        setIsReg(true);
+        loadUserData(session.user);
+        loadMyChars(session.user.id);
+        loadSessions(session.user.id);
+      }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) { setSupaUser(session.user); setIsReg(true); loadUserData(session.user); loadMyChars(session.user.id); }
-      else { setSupaUser(null); setIsReg(false); setLikedChars([]); setFollowed([]); setUserProfile({ displayName:"", bio:"", avatarEmoji:"🌙" }); setMyCharsDB([]); }
+      if (session?.user) {
+        setSupaUser(session.user);
+        setIsReg(true);
+        loadUserData(session.user);
+        loadMyChars(session.user.id);
+        loadSessions(session.user.id);
+      } else {
+        setSupaUser(null); setIsReg(false); setLikedChars([]); setFollowed([]);
+        setUserProfile({ displayName:"", bio:"", avatarEmoji:"🌙" });
+        setMyCharsDB([]); setSessions([]); setActiveSession(null);
+      }
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [loadSessions]);
 
   const pt = PROFILE_THEMES.find(p => p.id === profileTheme) || PROFILE_THEMES[0];
 
@@ -336,102 +425,183 @@ export default function App() {
   };
   const ts = TEXT_SCALES[textScale];
 
-  const openChat = (chars, settings = {}) => {
+  // ── Open / continue a chat ─────────────────────────────────────────────────
+  const openChat = async (chars, settings = {}) => {
+    const charsArr = Array.isArray(chars) ? chars : [chars];
+
+    if (isReg && supaUser) {
+      // Create new session in DB
+      const { data: newSession, error } = await supabase
+        .from("sessions")
+        .insert({
+          user_id: supaUser.id,
+          chars: charsArr,
+          wallpaper: settings.wallpaper || "none",
+          censorship: settings.censorship ?? true,
+          tone: settings.tone || "neutral",
+          response_size: settings.responseSize || "medium",
+        })
+        .select()
+        .single();
+
+      if (!error && newSession) {
+        const session = { ...newSession, messages: [] };
+        setSessions(prev => [newSession, ...prev]);
+        setActiveSession(session);
+        setPage("chat");
+        return;
+      }
+    }
+
+    // Guest fallback (in-memory only)
     const id = Date.now();
-    const chat = {
+    const session = {
       id,
-      chars: Array.isArray(chars) ? chars : [chars],
+      chars: charsArr,
       messages: [],
-      group: Array.isArray(chars) && chars.length > 1,
+      group: charsArr.length > 1,
       wallpaper: settings.wallpaper || "none",
       censorship: settings.censorship ?? true,
       tone: settings.tone || "neutral",
-      responseSize: settings.responseSize || "medium",
+      response_size: settings.responseSize || "medium",
     };
-    setChats(prev => [chat, ...prev]);
-    setActiveChat(chat);
+    setActiveSession(session);
     setPage("chat");
   };
 
-  const sendMessage = (text) => {
+  // ── Continue existing session ──────────────────────────────────────────────
+  const continueSession = async (session) => {
+    const messages = await loadMessages(session.id);
+    setActiveSession({ ...session, messages });
+    setPage("chat");
+  };
+
+  // ── Delete session ─────────────────────────────────────────────────────────
+  const deleteSession = async (sessionId) => {
+    await supabase.from("sessions").delete().eq("id", sessionId);
+    setSessions(prev => prev.filter(s => s.id !== sessionId));
+    if (activeSession?.id === sessionId) setActiveSession(null);
+  };
+
+  // ── Send message ───────────────────────────────────────────────────────────
+  const sendMessage = async (text) => {
     if (!isReg && msgCount >= FREE_LIMIT) { setShowReg(true); return; }
-    const userMsg = { id: Date.now(), role: "user", text };
-    setActiveChat(prev => {
-      const updated = { ...prev, messages: [...prev.messages, userMsg] };
-      setChats(cs => cs.map(c => c.id === updated.id ? updated : c));
-      setTimeout(() => {
-        const char = updated.chars[Math.floor(Math.random() * updated.chars.length)];
-        const tone = updated.tone || "neutral";
-        const size = updated.responseSize || "medium";
-        const detectedLang = lang;
 
-        const AI_REPLIES_LOCALIZED = {
-          en: AI_REPLIES,
-          ru: {
-            romantic: [(n) => `*${n} смотрит на тебя тихо, что-то тёплое мелькает в их взгляде.* Я не ожидал чувствовать это. Не знаю, что с этим делать.`,(n) => `*Пальцы ${n} едва касаются твоих — почти случайно.* Ты делаешь сложнее держать дистанцию. Надеюсь, ты это знаешь.`],
-            dominant: [(n) => `*Взгляд ${n} останавливается на тебе с весом того, кто привык к подчинению.* Делай, как я говорю. Это не просьба.`,(n) => `*${n} медленно наклоняет голову, голос низкий и размеренный.* Я решаю, как это будет. Не ты. Понятно?`],
-            soft: [(n) => `*${n} тихо улыбается — той улыбкой, которой не нужна аудитория.* Тебе не нужно объяснять. Я понимаю. Не торопись.`,(n) => `*${n} осторожно тянется к тебе, не касаясь.* Я никуда не ухожу. Что бы тебе ни понадобилось.`],
-            rough: [(n) => `*${n} фыркает, взгляд скользит в сторону.* Не читай между строк. Я просто оказался здесь.`,(n) => `*${n} скрещивает руки, сжав челюсть.* Говори что хочешь. Это ничего не меняет.`],
-            playful: [(n) => `*Глаза ${n} загораются тем особым озорством.* О? И ты думаешь, это на меня подействует? Мило.`,(n) => `*${n} делает вид, что потрясён до глубины души.* Ты только что ЭТОГО не сказал. Я лично ранен. Раздавлен.`],
-            neutral: [(n) => `*${n} изучает тебя с тихой точностью, что-то нечитаемое за их взглядом.* Есть вещи, которые я пока не могу сказать. Оставайся рядом — это может измениться.`,(n) => `*Тишина между вами растягивается, отягощённая невысказанным.* ${n} наконец говорит: Ты проницательнее, чем я думал.`],
-          },
-          uk: {
-            romantic: [(n) => `*${n} тихо дивиться на тебе, щось тепле промайнуло в їхньому погляді.* Я не очікував відчути це. Не знаю, що з цим робити.`,(n) => `*Пальці ${n} ледь торкаються твоїх — майже випадково.* Ти ускладнюєш дистанцію. Сподіваюсь, ти це знаєш.`],
-            dominant: [(n) => `*Погляд ${n} зупиняється на тобі з вагою того, хто звик до підкорення.* Робиш як я кажу. Це не прохання.`,(n) => `*${n} повільно нахиляє голову, голос низький і виважений.* Я вирішую як це буде. Не ти. Зрозуміло?`],
-            soft: [(n) => `*${n} тихо усміхається — тією посмішкою, якій не потрібна аудиторія.* Тобі не треба пояснювати. Я розумію. Не поспішай.`,(n) => `*${n} обережно тягнеться до тебе, не торкаючись.* Я нікуди не йду. Що б тобі не знадобилось.`],
-            rough: [(n) => `*${n} фиркає, погляд ковзає вбік.* Не читай між рядків. Я просто опинився тут.`,(n) => `*${n} схрещує руки, стиснувши щелепу.* Кажи що хочеш. Це нічого не змінює.`],
-            playful: [(n) => `*Очі ${n} загораються тим особливим пустощами.* О? І ти думаєш це на мене подіє? Мило.`,(n) => `*${n} вдає що вражений до глибини душі.* Ти щойно ЦЬОГО не сказав. Я особисто поранений. Спустошений.`],
-            neutral: [(n) => `*${n} вивчає тебе з тихою точністю, щось нечитане за їхнім поглядом.* Є речі, які я поки не можу сказати. Залишайся поруч — це може змінитись.`,(n) => `*Тиша між вами розтягується, обтяжена невисловленим.* ${n} нарешті каже: Ти проникливіший, ніж я думав.`],
-          },
-        };
+    const userMsg = {
+      id: `local-${Date.now()}`,
+      role: "user",
+      text,
+    };
 
-        const localReplies = AI_REPLIES_LOCALIZED[detectedLang] || AI_REPLIES;
-        const pool = localReplies[tone] || localReplies.neutral || AI_REPLIES.neutral;
-        let reply = pool[Math.floor(Math.random() * pool.length)](char.name);
-        if (size === "small") { const s = reply.match(/[^.!?]+[.!?]+/g) || [reply]; reply = s.slice(0,1).join("").trim(); }
-        if (size === "medium") { const s = reply.match(/[^.!?]+[.!?]+/g) || [reply]; reply = s.slice(0,2).join("").trim(); }
-        if (size === "large") {
-          reply += ` *${char.name} lets the silence stretch, watching you with quiet intensity that makes the air feel heavier.* "But then again — maybe that's exactly why you're still here."`;
-          reply += ` *Something shifts in ${char.name}'s expression — brief, barely caught, like a door swinging open and shut before you could see what was behind it.* "Don't read too much into it. Or do. I stopped telling people what to think a long time ago."`;
-        }
-        const aiMsg = { id: Date.now() + 1, role: "ai", charName: char.name, charAvatar: char.avatar, text: reply, originalText: reply };
-        setActiveChat(p2 => {
-          const u2 = { ...p2, messages: [...p2.messages, aiMsg] };
-          setChats(cs => cs.map(c => c.id === u2.id ? u2 : c));
-          return u2;
-        });
-      }, 850);
-      return updated;
-    });
+    // Optimistic UI update
+    setActiveSession(prev => ({ ...prev, messages: [...(prev.messages || []), userMsg] }));
+
+    // Save user message to DB
+    if (isReg && activeSession?.id && typeof activeSession.id === "string") {
+      await supabase.from("messages").insert({
+        session_id: activeSession.id,
+        role: "user",
+        text,
+      });
+      // Refresh sessions list (update last_used_at display)
+      loadSessions(supaUser.id);
+    }
+
+    // Generate AI reply
+    setTimeout(async () => {
+      const session = activeSession;
+      const charsArr = session.chars || [];
+      const char = charsArr[Math.floor(Math.random() * charsArr.length)];
+      const tone = session.tone || "neutral";
+      const size = session.response_size || session.responseSize || "medium";
+
+      const AI_REPLIES_LOCALIZED = {
+        en: AI_REPLIES,
+        ru: {
+          romantic: [(n) => `*${n} смотрит на тебя тихо, что-то тёплое мелькает в их взгляде.* Я не ожидал чувствовать это. Не знаю, что с этим делать.`,(n) => `*Пальцы ${n} едва касаются твоих — почти случайно.* Ты делаешь сложнее держать дистанцию. Надеюсь, ты это знаешь.`],
+          dominant: [(n) => `*Взгляд ${n} останавливается на тебе с весом того, кто привык к подчинению.* Делай, как я говорю. Это не просьба.`,(n) => `*${n} медленно наклоняет голову, голос низкий и размеренный.* Я решаю, как это будет. Не ты. Понятно?`],
+          soft: [(n) => `*${n} тихо улыбается — той улыбкой, которой не нужна аудитория.* Тебе не нужно объяснять. Я понимаю. Не торопись.`,(n) => `*${n} осторожно тянется к тебе, не касаясь.* Я никуда не ухожу. Что бы тебе ни понадобилось.`],
+          rough: [(n) => `*${n} фыркает, взгляд скользит в сторону.* Не читай между строк. Я просто оказался здесь.`,(n) => `*${n} скрещивает руки, сжав челюсть.* Говори что хочешь. Это ничего не меняет.`],
+          playful: [(n) => `*Глаза ${n} загораются тем особым озорством.* О? И ты думаешь, это на меня подействует? Мило.`,(n) => `*${n} делает вид, что потрясён до глубины души.* Ты только что ЭТОГО не сказал. Я лично ранен. Раздавлен.`],
+          neutral: [(n) => `*${n} изучает тебя с тихой точностью, что-то нечитаемое за их взглядом.* Есть вещи, которые я пока не могу сказать. Оставайся рядом — это может измениться.`,(n) => `*Тишина между вами растягивается, отягощённая невысказанным.* ${n} наконец говорит: Ты проницательнее, чем я думал.`],
+        },
+        uk: {
+          romantic: [(n) => `*${n} тихо дивиться на тебе, щось тепле промайнуло в їхньому погляді.* Я не очікував відчути це. Не знаю, що з цим робити.`,(n) => `*Пальці ${n} ледь торкаються твоїх — майже випадково.* Ти ускладнюєш дистанцію. Сподіваюсь, ти це знаєш.`],
+          dominant: [(n) => `*Погляд ${n} зупиняється на тобі з вагою того, хто звик до підкорення.* Робиш як я кажу. Це не прохання.`,(n) => `*${n} повільно нахиляє голову, голос низький і виважений.* Я вирішую як це буде. Не ти. Зрозуміло?`],
+          soft: [(n) => `*${n} тихо усміхається — тією посмішкою, якій не потрібна аудиторія.* Тобі не треба пояснювати. Я розумію. Не поспішай.`,(n) => `*${n} обережно тягнеться до тебе, не торкаючись.* Я нікуди не йду. Що б тобі не знадобилось.`],
+          rough: [(n) => `*${n} фиркає, погляд ковзає вбік.* Не читай між рядків. Я просто опинився тут.`,(n) => `*${n} схрещує руки, стиснувши щелепу.* Кажи що хочеш. Це нічого не змінює.`],
+          playful: [(n) => `*Очі ${n} загораються тим особливим пустощами.* О? І ти думаєш це на мене подіє? Мило.`,(n) => `*${n} вдає що вражений до глибини душі.* Ти щойно ЦЬОГО не сказав. Я особисто поранений. Спустошений.`],
+          neutral: [(n) => `*${n} вивчає тебе з тихою точністю, щось нечитане за їхнім поглядом.* Є речі, які я поки не можу сказати. Залишайся поруч — це може змінитись.`,(n) => `*Тиша між вами розтягується, обтяжена невисловленим.* ${n} нарешті каже: Ти проникливіший, ніж я думав.`],
+        },
+      };
+
+      const localReplies = AI_REPLIES_LOCALIZED[lang] || AI_REPLIES;
+      const pool = localReplies[tone] || localReplies.neutral || AI_REPLIES.neutral;
+      let reply = pool[Math.floor(Math.random() * pool.length)](char.name);
+
+      if (size === "small") { const s = reply.match(/[^.!?]+[.!?]+/g) || [reply]; reply = s.slice(0,1).join("").trim(); }
+      if (size === "medium") { const s = reply.match(/[^.!?]+[.!?]+/g) || [reply]; reply = s.slice(0,2).join("").trim(); }
+      if (size === "large") {
+        reply += ` *${char.name} lets the silence stretch, watching you with quiet intensity that makes the air feel heavier.* "But then again — maybe that's exactly why you're still here."`;
+      }
+
+      const aiMsg = {
+        id: `local-ai-${Date.now()}`,
+        role: "ai",
+        charName: char.name,
+        charAvatar: char.avatar,
+        text: reply,
+        originalText: reply,
+      };
+
+      // Save AI message to DB
+      if (isReg && session?.id && typeof session.id === "string") {
+        const { data: saved } = await supabase.from("messages").insert({
+          session_id: session.id,
+          role: "ai",
+          text: reply,
+          original_text: reply,
+          char_name: char.name,
+          char_avatar: char.avatar,
+        }).select().single();
+        if (saved) aiMsg.id = saved.id;
+        loadSessions(supaUser.id);
+      }
+
+      setActiveSession(prev => {
+        if (!prev) return prev;
+        return { ...prev, messages: [...(prev.messages || []), aiMsg] };
+      });
+    }, 850);
+
     if (!isReg) setMsgCount(n => n + 1);
   };
 
-  const editMessage = (chatId, msgId, newText) => {
-    const upd = c => c.id === chatId ? { ...c, messages: c.messages.map(m => m.id === msgId ? { ...m, text: newText } : m) } : c;
-    setChats(cs => cs.map(upd));
-    setActiveChat(prev => prev ? upd(prev) : prev);
+  const editMessage = (sessionId, msgId, newText) => {
+    setActiveSession(prev => {
+      if (!prev || prev.id !== sessionId) return prev;
+      return { ...prev, messages: prev.messages.map(m => m.id === msgId ? { ...m, text: newText } : m) };
+    });
+    // Update in DB
+    if (isReg && typeof msgId === "string" && !msgId.startsWith("local")) {
+      supabase.from("messages").update({ text: newText }).eq("id", msgId);
+    }
   };
 
+  // Re-translate AI messages on lang change
   useEffect(() => {
-    if (!chats.length) return;
-    const translateChats = async () => {
-      const newChats = await Promise.all(chats.map(async (chat) => {
-        const aiMsgs = chat.messages.filter(m => m.role === "ai" && m.originalText);
-        if (!aiMsgs.length) return chat;
-        const translated = await Promise.all(chat.messages.map(async (msg) => {
+    if (!activeSession?.messages?.length) return;
+    const translateMsgs = async () => {
+      const translated = await Promise.all(
+        activeSession.messages.map(async (msg) => {
           if (msg.role !== "ai" || !msg.originalText) return msg;
           const translatedText = await translateRoleplayText(msg.originalText, lang);
           return { ...msg, text: translatedText };
-        }));
-        return { ...chat, messages: translated };
-      }));
-      setChats(newChats);
-      if (activeChat) {
-        const updated = newChats.find(c => c.id === activeChat.id);
-        if (updated) setActiveChat(updated);
-      }
+        })
+      );
+      setActiveSession(prev => prev ? { ...prev, messages: translated } : prev);
     };
-    translateChats();
+    translateMsgs();
   }, [lang]); // eslint-disable-line
 
   const filtered = MOCK_CHARS.filter(c =>
@@ -459,6 +629,7 @@ export default function App() {
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         .fab{transition:all .15s}
         .fab:hover{opacity:.85;transform:translateY(-1px)}
+        .session-card:hover .del-btn{opacity:1!important}
       `}</style>
 
       {page !== "chat" && (
@@ -474,9 +645,9 @@ export default function App() {
       <div style={{ flex:1, overflowY:"auto", overflowX:"hidden" }}>
         {page==="home"    && <HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} likedChars={likedChars} setLikedChars={setLikedChars} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} />}
         {page==="create"  && <CreatePage  t={t} lang={lang} supaUser={supaUser} onCharCreated={()=>supaUser&&loadMyChars(supaUser.id)} />}
-        {page==="chats"   && <ChatsPage   t={t} chats={chats} setActiveChat={setActiveChat} setPage={setPage} ts={ts} />}
+        {page==="chats"   && <ChatsPage   t={t} sessions={sessions} sessionsLoading={sessionsLoading} onContinue={continueSession} onDelete={deleteSession} lang={lang} isReg={isReg} onShowAuth={()=>setShowReg(true)} />}
         {page==="profile" && <ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} />}
-        {page==="chat" && activeChat && <ChatPage t={t} chat={activeChat} onSend={sendMessage} onBack={() => setPage("chats")} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} />}
+        {page==="chat" && activeSession && <ChatPage t={t} chat={activeSession} onSend={sendMessage} onBack={() => { setPage("chats"); loadSessions(supaUser?.id); }} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} />}
       </div>
 
       {groupMode && groupChars.length > 0 && page==="home" && (
@@ -501,18 +672,13 @@ export default function App() {
       )}
 
       {showReg && (
-        <AuthModal
-          t={t}
-          C={C}
-          onClose={() => setShowReg(false)}
-          onSuccess={(user) => { setIsReg(true); setShowReg(false); }}
-        />
+        <AuthModal t={t} C={C} onClose={() => setShowReg(false)} onSuccess={(user) => { setIsReg(true); setShowReg(false); }} />
       )}
     </div>
   );
 }
 
-// ─── HOME ────────────────────────────────────────────────────────────────────
+// ─── HOME ─────────────────────────────────────────────────────────────────────
 function HomePage({ t, chars, search, setSearch, homeTab, setHomeTab, followed, setFollowed, likedChars, setLikedChars, openChat, groupMode, setGroupMode, groupChars, setGroupChars, lang }) {
   const [setupChar, setSetupChar] = useState(null);
   const toggleFollow = async (e, author) => {
@@ -582,7 +748,7 @@ function HomePage({ t, chars, search, setSearch, homeTab, setHomeTab, followed, 
   );
 }
 
-// ─── CHAT SETUP MODAL ────────────────────────────────────────────────────────
+// ─── CHAT SETUP MODAL ─────────────────────────────────────────────────────────
 function ChatSetupModal({ char, t, lang, onStart, onClose }) {
   const [wallpaper, setWallpaper] = useState("none");
   const [censor, setCensor] = useState(true);
@@ -636,7 +802,7 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
   );
 }
 
-// ─── CREATE ──────────────────────────────────────────────────────────────────
+// ─── CREATE ───────────────────────────────────────────────────────────────────
 function CreatePage({ t, lang, supaUser, onCharCreated }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -814,7 +980,7 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
         <Fld label={t.visibility}>
           <div style={{ display:"flex", gap:8, marginTop:6 }}>
             {[["public","🌍",t.public],["followers","👥",t.followers],["private","🔒",t.private]].map(([val,icon,label])=>(
-              <button key={val} onClick={()=>setVisibility(val)} style={{ flex:1, padding:"9px 4px", borderRadius:12, border:`1.5px solid ${visibility===val?C.mint:C.border}`, background:visibility===val?C.mintPale:C.card, color:visibility===val?C.mint:C.textMuted, fontFamily:"inherit", fontSize:10, fontWeight:700, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}><span style={{ fontSize:16 }}>{icon}</span>{label}</button>
+              <button key={val} onClick={()=>setVisibility(val)} style={{ flex:1, padding:"9px 4px", borderRadius:12, border:`1.5px solid ${visibility===val?C.mint:C.border}`, background:visibility===val?C.mintPale:C.card, color:visibility===val?C.mint:C.textMuted, fontFamily:"inherit", fontSize:10, fontWeight:700, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}><span style={{ fontSize:16 }}>{val==="public"?"🌍":val==="followers"?"👥":"🔒"}</span>{label}</button>
             ))}
           </div>
         </Fld>
@@ -827,39 +993,107 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
   );
 }
 
-// ─── CHATS ───────────────────────────────────────────────────────────────────
-function ChatsPage({ t, chats, setActiveChat, setPage }) {
-  if (!chats.length) return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"60vh", color:C.textMuted, flexDirection:"column", gap:12 }}>
-      <span style={{ fontSize:40 }}>💬</span><span style={{ fontSize:14 }}>{t.noChats}</span>
+// ─── CHATS PAGE (новий — показує сесії з Supabase) ────────────────────────────
+function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, isReg, onShowAuth }) {
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  if (!isReg) return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"60vh", flexDirection:"column", gap:16, padding:"0 24px", textAlign:"center" }}>
+      <span style={{ fontSize:44 }}>💬</span>
+      <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:17 }}>Your chats live here</div>
+      <div style={{ fontSize:13, color:C.textMuted, lineHeight:1.6 }}>Sign in to save every roleplay session and continue right where you left off — any time.</div>
+      <button onClick={onShowAuth} style={{ background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"12px 28px", borderRadius:14 }}>Sign in to see chats</button>
     </div>
   );
+
+  if (sessionsLoading) return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"50vh", color:C.textMuted, gap:10 }}>
+      <span style={{ display:"inline-block", animation:"spin 1s linear infinite", fontSize:20 }}>◌</span>
+      <span style={{ fontSize:13 }}>Loading chats...</span>
+    </div>
+  );
+
+  if (!sessions.length) return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"60vh", color:C.textMuted, flexDirection:"column", gap:12 }}>
+      <span style={{ fontSize:40 }}>💬</span>
+      <span style={{ fontSize:14 }}>{t.noChats}</span>
+    </div>
+  );
+
   return (
-    <div style={{ padding:"15px" }}>
-      <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:13 }}>{t.chats}</div>
-      {chats.map(chat => {
-        const last = chat.messages[chat.messages.length-1];
-        const wp = WALLPAPERS.find(w=>w.id===chat.wallpaper)||WALLPAPERS[0];
-        const tn = TONES.find(x=>x.id===chat.tone);
-        return (
-          <div key={chat.id} onClick={()=>{ setActiveChat(chat); setPage("chat"); }} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"12px 14px", marginBottom:8, cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ width:44, height:44, borderRadius:12, ...wp.css, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{chat.chars.map(c=>c.avatar).join("")}</div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontWeight:700, fontSize:13, marginBottom:2 }}>{chat.chars.map(c=>c.name).join(", ")}</div>
-              <div style={{ fontSize:11, color:C.textMuted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{last?last.text.replace(/\*[^*]+\*/g,"").trim().slice(0,48)+"...":"New conversation"}</div>
+    <div style={{ padding:"15px 14px 24px" }}>
+      <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:14 }}>{t.chats}</div>
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+        {sessions.map(session => {
+          const chars = Array.isArray(session.chars) ? session.chars : [];
+          const wp = WALLPAPERS.find(w => w.id === session.wallpaper) || WALLPAPERS[0];
+          const tn = TONES.find(x => x.id === session.tone);
+          const isRecent = session.last_used_at && (Date.now() - new Date(session.last_used_at).getTime()) < 1000 * 60 * 30;
+
+          return (
+            <div key={session.id} className="session-card" style={{ position:"relative" }}>
+              {/* Delete confirm overlay */}
+              {confirmDelete === session.id && (
+                <div style={{ position:"absolute", inset:0, background:"rgba(14,15,17,.95)", borderRadius:16, zIndex:10, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:10, border:`1px solid ${C.danger}` }}>
+                  <div style={{ fontSize:13, color:C.text, fontWeight:600 }}>Delete this chat?</div>
+                  <div style={{ fontSize:11, color:C.textMuted }}>All messages will be lost forever.</div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={()=>{ onDelete(session.id); setConfirmDelete(null); }} style={{ background:C.danger, color:"#fff", borderRadius:10, padding:"7px 18px", fontFamily:"inherit", fontWeight:700, fontSize:12 }}>Delete</button>
+                    <button onClick={()=>setConfirmDelete(null)} style={{ background:C.card, color:C.textMuted, borderRadius:10, padding:"7px 14px", border:`1px solid ${C.border}`, fontFamily:"inherit", fontSize:12 }}>Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              <div onClick={() => onContinue(session)} style={{ background:C.card, border:`1.5px solid ${isRecent ? C.mintDim : C.border}`, borderRadius:16, padding:"13px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12, transition:"all .18s" }}
+                onMouseEnter={e=>{ e.currentTarget.style.background=C.cardHover; e.currentTarget.style.borderColor=C.mint; }}
+                onMouseLeave={e=>{ e.currentTarget.style.background=C.card; e.currentTarget.style.borderColor=isRecent?C.mintDim:C.border; }}>
+
+                {/* Avatar */}
+                <div style={{ width:48, height:48, borderRadius:14, ...wp.css, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0, position:"relative" }}>
+                  {chars.map(c => c.avatar || c.avatar_emoji || "🌟").join("")}
+                  {isRecent && (
+                    <div style={{ position:"absolute", top:-3, right:-3, width:10, height:10, borderRadius:"50%", background:C.mint, border:`2px solid ${C.card}`, boxShadow:`0 0 6px ${C.mint}` }} />
+                  )}
+                </div>
+
+                {/* Info */}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, marginBottom:3 }}>
+                    {chars.map(c => c.name).join(", ")}
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    {/* Last used time */}
+                    <span style={{ fontSize:11, color:isRecent ? C.mint : C.textMuted, display:"flex", alignItems:"center", gap:3 }}>
+                      🕐 {timeAgo(session.last_used_at, lang)}
+                    </span>
+                    {tn && <span style={{ fontSize:11 }}>{tn.icon}</span>}
+                    <span style={{ fontSize:11, color:C.textDim }}>{session.censorship ? "🛡" : "🔥"}</span>
+                  </div>
+                </div>
+
+                {/* Continue button + delete */}
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6, flexShrink:0 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:C.mint, background:C.mintPale, padding:"4px 10px", borderRadius:20 }}>
+                    {t.continueChat} →
+                  </div>
+                  <button
+                    className="del-btn"
+                    onClick={e => { e.stopPropagation(); setConfirmDelete(session.id); }}
+                    style={{ fontSize:10, color:C.textDim, opacity:0, transition:"opacity .15s", padding:"2px 6px", borderRadius:6, background:"transparent" }}
+                  >
+                    🗑
+                  </button>
+                </div>
+              </div>
             </div>
-            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3, flexShrink:0 }}>
-              {tn && <span style={{ fontSize:14 }}>{tn.icon}</span>}
-              <span style={{ fontSize:10, color:C.textDim }}>{chat.messages.length} {t.msgCount}</span>
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-// ─── LANG PICKER ─────────────────────────────────────────────────────────────
+// ─── LANG PICKER ──────────────────────────────────────────────────────────────
 const LANG_FLAGS = {
   en: { flag:"🇬🇧", label:"English" },
   ru: { flag:"🇷🇺", label:"Русский" },
@@ -905,7 +1139,7 @@ function LangPicker({ lang, setLang }) {
   );
 }
 
-// ─── ROLEPLAY TEXT RENDERER ──────────────────────────────────────────────────
+// ─── ROLEPLAY TEXT RENDERER ───────────────────────────────────────────────────
 function RoleText({ text, fontSize, lineHeight, isUser }) {
   if (!text) return null;
   const segments = [];
@@ -942,7 +1176,7 @@ function RoleText({ text, fontSize, lineHeight, isUser }) {
   );
 }
 
-// ─── CHAT ────────────────────────────────────────────────────────────────────
+// ─── CHAT PAGE ─────────────────────────────────────────────────────────────────
 function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts }) {
   const [input, setInput] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -954,30 +1188,32 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
   const handleSend = () => { if(input.trim()){ onSend(input.trim()); setInput(""); } };
   const startEdit = (msg) => { setEditingId(msg.id); setEditText(msg.text); };
   const saveEdit  = () => { editMessage(chat.id, editingId, editText); setEditingId(null); };
+  const chars = chat.chars || [];
+
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100vh", ...wp.css }}>
       <div style={{ padding:"11px 15px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:10, background:"rgba(14,15,17,.88)", backdropFilter:"blur(10px)", flexShrink:0 }}>
         <button onClick={onBack} style={{ color:C.mint, fontSize:20, padding:"4px 8px 4px 0", lineHeight:1 }}>←</button>
-        <div style={{ fontSize:24 }}>{chat.chars.map(c=>c.avatar).join(" ")}</div>
+        <div style={{ fontSize:24 }}>{chars.map(c=>c.avatar||c.avatar_emoji||"🌟").join(" ")}</div>
         <div style={{ flex:1 }}>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:14 }}>{chat.chars.map(c=>c.name).join(", ")}</div>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:14 }}>{chars.map(c=>c.name).join(", ")}</div>
           <div style={{ fontSize:10, color:C.mint, display:"flex", gap:5, flexWrap:"wrap" }}>
             <span>{t.online}</span><span>·</span>
             {tn && <span>{tn.icon} {tn.en}</span>}<span>·</span>
             <span>{chat.censorship?"🛡":"🔥"}</span><span>·</span>
-            <span>{chat.responseSize==="small"?"📝":chat.responseSize==="large"?"📜":"📄"}</span>
+            <span>{(chat.response_size||chat.responseSize)==="small"?"📝":(chat.response_size||chat.responseSize)==="large"?"📜":"📄"}</span>
           </div>
         </div>
         {!isReg && <div style={{ fontSize:10, color:C.textMuted, background:"rgba(28,30,33,.8)", padding:"3px 8px", borderRadius:20, border:`1px solid ${C.border}` }}>{Math.max(0,10-msgCount)} {t.messages}</div>}
       </div>
       <div style={{ flex:1, overflowY:"auto", padding:"14px 13px", display:"flex", flexDirection:"column", gap:10 }}>
-        {chat.messages.length===0 && (
+        {(!chat.messages || chat.messages.length===0) && (
           <div style={{ textAlign:"center", color:C.textMuted, fontSize:13, marginTop:40 }}>
-            <div style={{ fontSize:38, marginBottom:10 }}>{chat.chars[0]?.avatar}</div>
-            <div>Begin your story with <strong>{chat.chars.map(c=>c.name).join(" & ")}</strong></div>
+            <div style={{ fontSize:38, marginBottom:10 }}>{chars[0]?.avatar||chars[0]?.avatar_emoji||"🌟"}</div>
+            <div>Begin your story with <strong>{chars.map(c=>c.name).join(" & ")}</strong></div>
           </div>
         )}
-        {chat.messages.map(msg=>(
+        {(chat.messages || []).map(msg=>(
           <div key={msg.id} className="mb" style={{ display:"flex", flexDirection:msg.role==="user"?"row-reverse":"row", gap:8, alignItems:"flex-end" }}>
             {msg.role==="ai" && <span style={{ fontSize:21, flexShrink:0, lineHeight:1 }}>{msg.charAvatar}</span>}
             <div style={{ maxWidth:"80%" }}>
@@ -1015,7 +1251,7 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
   );
 }
 
-// ─── AUTH MODAL ──────────────────────────────────────────────────────────────
+// ─── AUTH MODAL ───────────────────────────────────────────────────────────────
 function AuthModal({ t, C, onClose, onSuccess }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
@@ -1023,8 +1259,6 @@ function AuthModal({ t, C, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-
-  // FIX: використовуємо useRef щоб мати актуальні значення в обробнику
   const emailRef = useRef(email);
   const passwordRef = useRef(password);
   const modeRef = useRef(mode);
@@ -1036,51 +1270,21 @@ function AuthModal({ t, C, onClose, onSuccess }) {
     const currentEmail = emailRef.current.trim();
     const currentPassword = passwordRef.current;
     const currentMode = modeRef.current;
-
-    if (!currentEmail || !currentPassword) {
-      setError("Please fill in both email and password.");
-      return;
-    }
-
-    setError("");
-    setInfo("");
-    setLoading(true);
-
+    if (!currentEmail || !currentPassword) { setError("Please fill in both email and password."); return; }
+    setError(""); setInfo(""); setLoading(true);
     try {
       if (currentMode === "register") {
-        const { error: e } = await supabase.auth.signUp({
-          email: currentEmail,
-          password: currentPassword,
-        });
-        if (e) {
-          setError(e.message);
-        } else {
-          setInfo("Check your email to confirm your account!");
-        }
+        const { error: e } = await supabase.auth.signUp({ email: currentEmail, password: currentPassword });
+        if (e) setError(e.message);
+        else setInfo("Check your email to confirm your account!");
       } else {
-        const { data, error: e } = await supabase.auth.signInWithPassword({
-          email: currentEmail,
-          password: currentPassword,
-        });
-        if (e) {
-          setError(e.message);
-        } else if (data?.user) {
-          onSuccess(data.user);
-        } else {
-          setError("Login failed. Please try again.");
-        }
+        const { data, error: e } = await supabase.auth.signInWithPassword({ email: currentEmail, password: currentPassword });
+        if (e) setError(e.message);
+        else if (data?.user) onSuccess(data.user);
+        else setError("Login failed. Please try again.");
       }
-    } catch (e) {
-      setError("Something went wrong. Please try again.");
-    }
-
+    } catch { setError("Something went wrong. Please try again."); }
     setLoading(false);
-  };
-
-  const handleGoogle = async () => {
-    setError("");
-    const { error: e } = await supabase.auth.signInWithOAuth({ provider: "google" });
-    if (e) setError(e.message);
   };
 
   const inp = { width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontSize:14, fontFamily:"inherit", marginBottom:10, transition:"border-color .2s" };
@@ -1089,48 +1293,19 @@ function AuthModal({ t, C, onClose, onSuccess }) {
     <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,.82)", display:"flex", alignItems:"center", justifyContent:"center", padding:24, zIndex:100, backdropFilter:"blur(8px)" }}>
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:22, padding:28, maxWidth:320, width:"100%" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>
-            {mode === "login" ? "Sign In" : "Create Account"}
-          </div>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>{mode === "login" ? "Sign In" : "Create Account"}</div>
           <button onClick={onClose} style={{ color:C.textMuted, fontSize:22, lineHeight:1, padding:"2px 6px" }}>×</button>
         </div>
-
         {error && <div style={{ background:"rgba(224,124,124,.15)", border:"1px solid #e07c7c", borderRadius:10, padding:"8px 12px", fontSize:12, color:"#e07c7c", marginBottom:12, lineHeight:1.5 }}>{error}</div>}
         {info  && <div style={{ background:"rgba(126,207,179,.15)", border:`1px solid ${C.mint}`, borderRadius:10, padding:"8px 12px", fontSize:12, color:C.mint, marginBottom:12, lineHeight:1.5 }}>{info}</div>}
-
-        <input
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && handleSubmit()}
-          placeholder="Email"
-          type="email"
-          autoComplete="email"
-          style={inp}
-        />
-        <input
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && handleSubmit()}
-          placeholder="Password"
-          type="password"
-          autoComplete={mode === "register" ? "new-password" : "current-password"}
-          style={{ ...inp, marginBottom:16 }}
-        />
-
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          style={{ width:"100%", background:loading?"rgba(126,207,179,.4)":C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"13px 0", borderRadius:14, marginBottom:10, cursor:loading?"not-allowed":"pointer", transition:"all .2s" }}
-        >
+        <input value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()} placeholder="Email" type="email" autoComplete="email" style={inp} />
+        <input value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()} placeholder="Password" type="password" autoComplete={mode==="register"?"new-password":"current-password"} style={{ ...inp, marginBottom:16 }} />
+        <button onClick={handleSubmit} disabled={loading} style={{ width:"100%", background:loading?"rgba(126,207,179,.4)":C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"13px 0", borderRadius:14, marginBottom:10, cursor:loading?"not-allowed":"pointer", transition:"all .2s" }}>
           {loading ? "⏳ Loading..." : mode === "login" ? "Sign In" : "Create Account"}
         </button>
-
-
-
         <div style={{ textAlign:"center", fontSize:12, color:C.textMuted }}>
           {mode === "login" ? "No account? " : "Have an account? "}
-          <button onClick={()=>{setMode(m=>m==="login"?"register":"login");setError("");setInfo("");}}
-            style={{ color:C.mint, fontWeight:700, fontFamily:"inherit", fontSize:12 }}>
+          <button onClick={()=>{setMode(m=>m==="login"?"register":"login");setError("");setInfo("");}} style={{ color:C.mint, fontWeight:700, fontFamily:"inherit", fontSize:12 }}>
             {mode === "login" ? "Sign up" : "Sign in"}
           </button>
         </div>
@@ -1139,7 +1314,7 @@ function AuthModal({ t, C, onClose, onSuccess }) {
   );
 }
 
-// ─── PROFILE ─────────────────────────────────────────────────────────────────
+// ─── PROFILE ──────────────────────────────────────────────────────────────────
 const AVATAR_EMOJIS = ["🌙","⭐","🌸","🔥","💎","🌊","🦋","🐉","🌿","✨","🎭","🗡️","🪐","🌑","💀","🦊","🐺","🌺","🎪","🔮"];
 
 function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang, supaUser, onShowAuth, followed, likedChars, userProfile, setUserProfile, myCharsDB }) {
@@ -1165,15 +1340,13 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
       const url = data.publicUrl + "?t=" + Date.now();
       setUserProfile(prev => ({ ...prev, avatarPhoto: url }));
       if (supaUser) await supabase.from("profiles").upsert({ id: supaUser.id, avatar_photo: url });
-    } catch(err) { alert("Something went wrong."); }
+    } catch { alert("Something went wrong."); }
     setUploadingPhoto(false);
   };
 
-  // Real user characters from DB
   const myPublicChars = (myCharsDB || []).filter(c => c.visibility === "public");
   const myPrivateChars = (myCharsDB || []).filter(c => c.visibility === "private");
   const myChars = [...myPublicChars, ...myPrivateChars];
-
   const likedCharsList = MOCK_CHARS.filter(c => likedChars.includes(c.id));
   const followedAuthors = [...new Set(MOCK_CHARS.map(c=>c.author))].filter(a => followed.includes(a));
 
@@ -1187,23 +1360,11 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
     setEditingProfile(false);
     setShowAvatarPicker(false);
     if (!supaUser) return;
-    await supabase.from("profiles").upsert({
-      id: supaUser.id,
-      display_name: editName,
-      bio: editBio,
-      avatar_emoji: editAvatar,
-    });
+    await supabase.from("profiles").upsert({ id: supaUser.id, display_name: editName, bio: editBio, avatar_emoji: editAvatar });
   };
 
   const displayName = userProfile.displayName || supaUser?.email?.split("@")[0] || "You";
-
-  const tabStyle = (id) => ({
-    flex:1, padding:"8px 4px", fontSize:10, fontWeight:700, fontFamily:"inherit",
-    color: activeTab===id ? pt.accent : C.textMuted,
-    background: "transparent",
-    borderBottom: `2px solid ${activeTab===id ? pt.accent : "transparent"}`,
-    textTransform:"uppercase", letterSpacing:.5, transition:"all .15s"
-  });
+  const tabStyle = (id) => ({ flex:1, padding:"8px 4px", fontSize:10, fontWeight:700, fontFamily:"inherit", color:activeTab===id?pt.accent:C.textMuted, background:"transparent", borderBottom:`2px solid ${activeTab===id?pt.accent:"transparent"}`, textTransform:"uppercase", letterSpacing:.5, transition:"all .15s" });
 
   if (!isReg) return (
     <div style={{ minHeight:"100%", background:pt.grad, padding:"18px 18px 32px" }}>
@@ -1219,18 +1380,12 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
 
   return (
     <div style={{ minHeight:"100%", background:pt.grad }}>
-      {/* Profile Header */}
       <div style={{ padding:"18px 18px 0", position:"relative" }}>
-        {/* Cover gradient */}
         <div style={{ position:"absolute", top:0, left:0, right:0, height:100, background:`linear-gradient(180deg, ${pt.accent}22 0%, transparent 100%)`, pointerEvents:"none" }} />
-
         <div style={{ position:"relative", display:"flex", alignItems:"flex-end", gap:14, marginBottom:14 }}>
-          {/* Avatar */}
           <div style={{ position:"relative" }}>
             <div style={{ width:72, height:72, borderRadius:"50%", background:`rgba(255,255,255,.05)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, border:`3px solid ${pt.accent}`, boxShadow:`0 0 20px ${pt.accent}44`, overflow:"hidden" }}>
-              {userProfile.avatarPhoto
-                ? <img src={userProfile.avatarPhoto} alt="avatar" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
-                : userProfile.avatarEmoji}
+              {userProfile.avatarPhoto ? <img src={userProfile.avatarPhoto} alt="avatar" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : userProfile.avatarEmoji}
             </div>
             {editingProfile && (
               <button onClick={()=>setShowAvatarPicker(s=>!s)} style={{ position:"absolute", bottom:0, right:0, background:pt.accent, borderRadius:"50%", width:22, height:22, fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", color:C.bg }}>✏</button>
@@ -1258,11 +1413,8 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
             )}
           </div>
         </div>
-
-        {/* Avatar picker */}
         {showAvatarPicker && (
           <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:12, marginBottom:12 }}>
-            {/* Photo upload */}
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display:"none" }} />
             <button onClick={()=>fileInputRef.current?.click()} disabled={uploadingPhoto} style={{ width:"100%", marginBottom:10, padding:"10px", borderRadius:12, border:`1.5px dashed ${pt.accent}`, background:"transparent", color:pt.accent, fontFamily:"inherit", fontWeight:700, fontSize:12, display:"flex", alignItems:"center", justifyContent:"center", gap:8, cursor:"pointer" }}>
               {uploadingPhoto ? "⏳ Uploading..." : "📷 Upload photo from gallery"}
@@ -1280,22 +1432,13 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
             </div>
           </div>
         )}
-
-        {/* Bio */}
         {editingProfile ? (
           <textarea value={editBio} onChange={e=>setEditBio(e.target.value)} placeholder="Write something about yourself..." rows={2} style={{ width:"100%", background:"rgba(28,30,33,.7)", border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 12px", color:C.text, fontSize:12, fontFamily:"inherit", resize:"none", lineHeight:1.5, marginBottom:14 }} />
         ) : userProfile.bio ? (
           <div style={{ fontSize:12, color:C.textMuted, lineHeight:1.6, marginBottom:14 }}>{userProfile.bio}</div>
         ) : null}
-
-        {/* Stats row */}
         <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-          {[
-            [myChars.length + myPrivateChars.length, "Characters"],
-            [likedCharsList.length, "Liked"],
-            [followedAuthors.length, "Following"],
-            ["∞", "Messages"],
-          ].map(([val, label]) => (
+          {[[myChars.length, "Characters"],[likedCharsList.length,"Liked"],[followedAuthors.length,"Following"],["∞","Messages"]].map(([val,label]) => (
             <div key={label} style={{ flex:1, background:"rgba(28,30,33,.7)", border:`1px solid ${C.border}`, borderRadius:14, padding:"10px 8px", textAlign:"center", backdropFilter:"blur(8px)" }}>
               <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18, color:pt.accent }}>{val}</div>
               <div style={{ fontSize:9, color:C.textMuted, marginTop:1, textTransform:"uppercase", letterSpacing:.4, fontWeight:600 }}>{label}</div>
@@ -1303,72 +1446,41 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
           ))}
         </div>
       </div>
-
-      {/* Tabs */}
       <div style={{ display:"flex", borderBottom:`1px solid ${C.border}`, background:"rgba(14,15,17,.6)", backdropFilter:"blur(8px)", position:"sticky", top:0, zIndex:10 }}>
         <button style={tabStyle("chars")} onClick={()=>setActiveTab("chars")}>🎭 My Chars</button>
         <button style={tabStyle("liked")} onClick={()=>setActiveTab("liked")}>❤️ Liked</button>
         <button style={tabStyle("following")} onClick={()=>setActiveTab("following")}>👥 Following</button>
         <button style={tabStyle("settings")} onClick={()=>setActiveTab("settings")}>⚙️ Style</button>
       </div>
-
       <div style={{ padding:"14px 16px 32px" }}>
-
-        {/* MY CHARACTERS TAB */}
         {activeTab === "chars" && (
           <div>
-            {/* Public */}
-            <div style={{ fontSize:11, color:pt.accent, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10, display:"flex", alignItems:"center", gap:8 }}>
-              🌍 Public · {myPublicChars.length}
-            </div>
+            <div style={{ fontSize:11, color:pt.accent, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>🌍 Public · {myPublicChars.length}</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:18 }}>
-              {myPublicChars.map(char => (
-                <MiniCharCard key={char.id} char={char} pt={pt} />
-              ))}
+              {myPublicChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} />)}
             </div>
-
-            {/* Private */}
-            <div style={{ fontSize:11, color:C.textMuted, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10, display:"flex", alignItems:"center", gap:8 }}>
-              🔒 Private · {myPrivateChars.length}
-            </div>
+            <div style={{ fontSize:11, color:C.textMuted, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>🔒 Private · {myPrivateChars.length}</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-              {myPrivateChars.map(char => (
-                <MiniCharCard key={char.id} char={char} pt={pt} isPrivate />
-              ))}
+              {myPrivateChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} isPrivate />)}
             </div>
-
-            {myPublicChars.length === 0 && myPrivateChars.length === 0 && (
-              <div style={{ textAlign:"center", color:C.textMuted, padding:"30px 0", fontSize:13 }}>No characters yet. Create your first!</div>
-            )}
+            {myChars.length === 0 && <div style={{ textAlign:"center", color:C.textMuted, padding:"30px 0", fontSize:13 }}>No characters yet. Create your first!</div>}
           </div>
         )}
-
-        {/* LIKED TAB */}
         {activeTab === "liked" && (
           <div>
             {likedCharsList.length === 0 ? (
-              <div style={{ textAlign:"center", color:C.textMuted, padding:"30px 0", fontSize:13 }}>
-                <div style={{ fontSize:32, marginBottom:10 }}>🤍</div>
-                No liked characters yet.<br/>Tap the heart on any character!
-              </div>
+              <div style={{ textAlign:"center", color:C.textMuted, padding:"30px 0", fontSize:13 }}><div style={{ fontSize:32, marginBottom:10 }}>🤍</div>No liked characters yet.</div>
             ) : (
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                {likedCharsList.map(char => (
-                  <MiniCharCard key={char.id} char={char} pt={pt} />
-                ))}
+                {likedCharsList.map(char => <MiniCharCard key={char.id} char={char} pt={pt} />)}
               </div>
             )}
           </div>
         )}
-
-        {/* FOLLOWING TAB */}
         {activeTab === "following" && (
           <div>
             {followedAuthors.length === 0 ? (
-              <div style={{ textAlign:"center", color:C.textMuted, padding:"30px 0", fontSize:13 }}>
-                <div style={{ fontSize:32, marginBottom:10 }}>👥</div>
-                Not following anyone yet.<br/>Follow authors from the home page!
-              </div>
+              <div style={{ textAlign:"center", color:C.textMuted, padding:"30px 0", fontSize:13 }}><div style={{ fontSize:32, marginBottom:10 }}>👥</div>Not following anyone yet.</div>
             ) : (
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                 {followedAuthors.map(author => {
@@ -1384,9 +1496,7 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
                         <div style={{ marginLeft:"auto", fontSize:10, color:C.mint, padding:"3px 10px", borderRadius:20, background:C.mintPale, fontWeight:700 }}>✓ Following</div>
                       </div>
                       <div style={{ display:"flex", gap:6, overflowX:"auto" }}>
-                        {authorChars.map(c => (
-                          <div key={c.id} style={{ flexShrink:0, width:48, height:48, borderRadius:12, background:c.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, border:`1px solid ${C.border}` }}>{c.avatar}</div>
-                        ))}
+                        {authorChars.map(c => <div key={c.id} style={{ flexShrink:0, width:48, height:48, borderRadius:12, background:c.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, border:`1px solid ${C.border}` }}>{c.avatar}</div>)}
                       </div>
                     </div>
                   );
@@ -1395,34 +1505,26 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
             )}
           </div>
         )}
-
-        {/* SETTINGS / STYLE TAB */}
         {activeTab === "settings" && (
           <div>
             <div style={{ fontSize:11, color:C.textMuted, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>{t.profileStyle}</div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:20 }}>
               {PROFILE_THEMES.map(theme=>(
                 <button key={theme.id} onClick={()=>setProfileTheme(theme.id)} style={{ padding:"10px 4px", borderRadius:12, border:`1.5px solid ${profileTheme===theme.id?theme.accent:C.border}`, background:profileTheme===theme.id?"rgba(255,255,255,.05)":C.card, color:profileTheme===theme.id?theme.accent:C.textMuted, fontFamily:"inherit", fontSize:11, fontWeight:700, display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
-                  <div style={{ width:22, height:22, borderRadius:"50%", background:theme.accent }} />
-                  {theme.label}
+                  <div style={{ width:22, height:22, borderRadius:"50%", background:theme.accent }} />{theme.label}
                 </button>
               ))}
             </div>
-
-            <div style={{ fontSize:11, color:C.textMuted, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>
-              Text size & response length
-            </div>
-
+            <div style={{ fontSize:11, color:C.textMuted, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>Text size & response length</div>
             <div style={{ background:"rgba(28,30,33,.95)", border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 14px", marginBottom:12, fontSize:ts.fontSize, lineHeight:ts.lineHeight, color:C.text }}>
               <span style={{ color:pt.accent, fontWeight:700, fontSize:ts.fontSize-1 }}>Aelindra{"  "}</span>
               <span style={{ fontStyle:"italic", color:C.textMuted }}>*turns slowly, eyes glinting.*</span>
               {" "}"You dare approach me?{(textScale==="lg"||textScale==="xl") ? " I haven't let anyone this close in a very long time." : ""}"
             </div>
-
             <div style={{ display:"flex", gap:6 }}>
               {Object.entries(TEXT_SCALES).map(([key, val])=>(
                 <button key={key} onClick={()=>setTextScale(key)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4, padding:"10px 4px", borderRadius:12, border:`1.5px solid ${textScale===key?pt.accent:C.border}`, background:textScale===key?"rgba(255,255,255,.05)":C.card, color:textScale===key?pt.accent:C.textMuted, fontFamily:"inherit", fontWeight:700, transition:"all .15s" }}>
-                  <span style={{ fontSize: val.fontSize, lineHeight:1 }}>Aa</span>
+                  <span style={{ fontSize:val.fontSize, lineHeight:1 }}>Aa</span>
                   <span style={{ fontSize:10 }}>{val.label}</span>
                 </button>
               ))}
@@ -1436,7 +1538,6 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
 }
 
 function MiniCharCard({ char, pt, isPrivate }) {
-  // Support both DB format and mock format
   const avatar = char.avatar_emoji || char.avatar || "🌟";
   const color = char.avatar_color || char.color || "#2d4a3e";
   const desc = char.description || char.desc || "";
@@ -1454,7 +1555,6 @@ function MiniCharCard({ char, pt, isPrivate }) {
   );
 }
 
-// ─── tiny helpers ─────────────────────────────────────────────────────────────
 function Lbl({ children }) {
   return <div style={{ fontSize:11, color:C.mint, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:8 }}>{children}</div>;
 }
