@@ -1049,9 +1049,7 @@ function AuthModal({ t, C, onClose, onSuccess }) {
           {loading ? "⏳ Loading..." : mode === "login" ? "Sign In" : "Create Account"}
         </button>
 
-        <button onClick={handleGoogle} style={{ width:"100%", background:C.surface, border:`1px solid ${C.border}`, color:C.text, fontFamily:"inherit", fontWeight:700, fontSize:13, padding:"11px 0", borderRadius:14, marginBottom:16, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-          <span style={{ fontSize:16 }}>G</span> Continue with Google
-        </button>
+
 
         <div style={{ textAlign:"center", fontSize:12, color:C.textMuted }}>
           {mode === "login" ? "No account? " : "Have an account? "}
@@ -1069,13 +1067,30 @@ function AuthModal({ t, C, onClose, onSuccess }) {
 const AVATAR_EMOJIS = ["🌙","⭐","🌸","🔥","💎","🌊","🦋","🐉","🌿","✨","🎭","🗡️","🪐","🌑","💀","🦊","🐺","🌺","🎪","🔮"];
 
 function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang, supaUser, onShowAuth, followed, likedChars, userProfile, setUserProfile }) {
-  const [activeTab, setActiveTab] = useState("chars"); // chars | liked | following | settings
+  const [activeTab, setActiveTab] = useState("chars");
   const [editingProfile, setEditingProfile] = useState(false);
   const [editName, setEditName] = useState(userProfile.displayName);
   const [editBio, setEditBio] = useState(userProfile.bio);
   const [editAvatar, setEditAvatar] = useState(userProfile.avatarEmoji);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
-  const [themeEditing, setThemeEditing] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !supaUser) return;
+    setUploadingPhoto(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${supaUser.id}/avatar.${ext}`;
+      const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+      if (upErr) { alert("Upload failed: " + upErr.message); setUploadingPhoto(false); return; }
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+      const url = data.publicUrl + "?t=" + Date.now();
+      setUserProfile(prev => ({ ...prev, avatarPhoto: url }));
+    } catch(err) { alert("Something went wrong."); }
+    setUploadingPhoto(false);
+  };
 
   // Mock user's own characters
   const myChars = MOCK_CHARS.filter((_, i) => i < 3); // first 3 as "mine"
@@ -1093,7 +1108,7 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
   };
 
   const saveProfile = () => {
-    setUserProfile({ displayName: editName, bio: editBio, avatarEmoji: editAvatar });
+    setUserProfile(prev => ({ ...prev, displayName: editName, bio: editBio, avatarEmoji: editAvatar }));
     setEditingProfile(false);
     setShowAvatarPicker(false);
   };
@@ -1130,8 +1145,10 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
         <div style={{ position:"relative", display:"flex", alignItems:"flex-end", gap:14, marginBottom:14 }}>
           {/* Avatar */}
           <div style={{ position:"relative" }}>
-            <div style={{ width:72, height:72, borderRadius:"50%", background:`rgba(255,255,255,.05)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, border:`3px solid ${pt.accent}`, boxShadow:`0 0 20px ${pt.accent}44` }}>
-              {userProfile.avatarEmoji}
+            <div style={{ width:72, height:72, borderRadius:"50%", background:`rgba(255,255,255,.05)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, border:`3px solid ${pt.accent}`, boxShadow:`0 0 20px ${pt.accent}44`, overflow:"hidden" }}>
+              {userProfile.avatarPhoto
+                ? <img src={userProfile.avatarPhoto} alt="avatar" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                : userProfile.avatarEmoji}
             </div>
             {editingProfile && (
               <button onClick={()=>setShowAvatarPicker(s=>!s)} style={{ position:"absolute", bottom:0, right:0, background:pt.accent, borderRadius:"50%", width:22, height:22, fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", color:C.bg }}>✏</button>
@@ -1160,12 +1177,25 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
           </div>
         </div>
 
-        {/* Avatar emoji picker */}
+        {/* Avatar picker */}
         {showAvatarPicker && (
-          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:12, marginBottom:12, display:"flex", flexWrap:"wrap", gap:8, justifyContent:"center" }}>
-            {AVATAR_EMOJIS.map(em => (
-              <button key={em} onClick={()=>{ setEditAvatar(em); setShowAvatarPicker(false); }} style={{ fontSize:26, width:44, height:44, borderRadius:12, border:`2px solid ${editAvatar===em?pt.accent:C.border}`, background:editAvatar===em?C.mintPale:C.surface, display:"flex", alignItems:"center", justifyContent:"center" }}>{em}</button>
-            ))}
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:12, marginBottom:12 }}>
+            {/* Photo upload */}
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display:"none" }} />
+            <button onClick={()=>fileInputRef.current?.click()} disabled={uploadingPhoto} style={{ width:"100%", marginBottom:10, padding:"10px", borderRadius:12, border:`1.5px dashed ${pt.accent}`, background:"transparent", color:pt.accent, fontFamily:"inherit", fontWeight:700, fontSize:12, display:"flex", alignItems:"center", justifyContent:"center", gap:8, cursor:"pointer" }}>
+              {uploadingPhoto ? "⏳ Uploading..." : "📷 Upload photo from gallery"}
+            </button>
+            {userProfile.avatarPhoto && (
+              <button onClick={()=>{ setUserProfile(prev=>({...prev, avatarPhoto:null})); setShowAvatarPicker(false); }} style={{ width:"100%", marginBottom:10, padding:"8px", borderRadius:12, border:`1px solid ${C.danger}`, background:"transparent", color:C.danger, fontFamily:"inherit", fontSize:11, fontWeight:700 }}>
+                🗑 Remove photo
+              </button>
+            )}
+            <div style={{ fontSize:10, color:C.textMuted, fontWeight:700, textTransform:"uppercase", letterSpacing:.4, marginBottom:8 }}>Or choose emoji</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8, justifyContent:"center" }}>
+              {AVATAR_EMOJIS.map(em => (
+                <button key={em} onClick={()=>{ setEditAvatar(em); setShowAvatarPicker(false); }} style={{ fontSize:26, width:44, height:44, borderRadius:12, border:`2px solid ${editAvatar===em?pt.accent:C.border}`, background:editAvatar===em?C.mintPale:C.surface, display:"flex", alignItems:"center", justifyContent:"center" }}>{em}</button>
+              ))}
+            </div>
           </div>
         )}
 
