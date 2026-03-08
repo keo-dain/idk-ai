@@ -622,7 +622,7 @@ export default function App() {
 
       <div style={{ flex:1, overflowY:"auto", overflowX:"hidden" }}>
         {page==="home"    && <HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} likedChars={likedChars} setLikedChars={setLikedChars} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} />}
-        {page==="create"  && <CreatePage  t={t} lang={lang} supaUser={supaUser} onCharCreated={()=>supaUser&&loadMyChars(supaUser.id)} />}
+        {page==="create"  && <CreatePage  t={t} lang={lang} supaUser={supaUser} onCharCreated={()=>supaUser&&loadMyChars(supaUser.id)} onOpenImported={(char)=>{ openChat(char, { tone: char.tone||"neutral" }); }} />}
         {page==="chats"   && <ChatsPage   t={t} sessions={sessions} sessionsLoading={sessionsLoading} onContinue={continueSession} onDelete={deleteSession} lang={lang} isReg={isReg} onShowAuth={()=>setShowReg(true)} />}
         {page==="profile" && <ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} />}
         {page==="chat" && activeSession && <ChatPage t={t} chat={activeSession} onSend={sendMessage} onBack={() => { setPage("chats"); loadSessions(supaUser?.id); }} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} />}
@@ -821,7 +821,8 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
 }
 
 // ─── CREATE ───────────────────────────────────────────────────────────────────
-function CreatePage({ t, lang, supaUser, onCharCreated }) {
+function CreatePage({ t, lang, supaUser, onCharCreated, onOpenImported }) {
+  const [activeTab, setActiveTab] = useState("create"); // "create" | "import"
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [personality, setPersonality] = useState("");
@@ -840,6 +841,82 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
   const [showAuto, setShowAuto] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState(false);
+
+  // Import from link
+  const [importUrl, setImportUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importedChar, setImportedChar] = useState(null);
+  const [importError, setImportError] = useState("");
+
+  const handleImport = async () => {
+    if (!importUrl.trim()) return;
+    setImporting(true);
+    setImportError("");
+    setImportedChar(null);
+    try {
+      const prompt = `You are a character extraction assistant. The user has provided a URL or text from a roleplay platform (Character.AI, Janitor AI, Chub.ai, NovelAI, etc.).
+
+URL/Link provided: ${importUrl}
+
+Based on this URL or any context you can infer, create a plausible character profile. If it's a real platform URL try to extract info from the URL slug/path. Otherwise create a character inspired by the URL context.
+
+Respond ONLY with a valid JSON object (no markdown, no explanation):
+{
+  "name": "character name",
+  "desc": "short one-line description",
+  "personality": "detailed personality and backstory (3-5 sentences)",
+  "firstMsg": "opening roleplay message with *actions in asterisks*",
+  "tags": ["tag1", "tag2"],
+  "tone": "neutral|romantic|dominant|soft|rough|playful",
+  "source": "platform name if recognizable"
+}`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 800,
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+      const data = await res.json();
+      const raw = data.content?.[0]?.text || "{}";
+      const clean = raw.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+      if (parsed.name) {
+        setImportedChar(parsed);
+      } else {
+        setImportError("Could not extract character from this link. Try pasting the character name or description instead.");
+      }
+    } catch {
+      setImportError("Something went wrong. Try pasting the character name or description directly.");
+    }
+    setImporting(false);
+  };
+
+  const useImportedChar = () => {
+    if (!importedChar) return;
+    const CHAR_COLORS = ["#2d4a3e","#1e2a3a","#2a1e3a","#3a2a1e","#3a1e2a","#1e3a2a","#1a2a3a","#2a1a3a"];
+    const CHAR_AVATARS = ["🧝‍♀️","🕵️","🤖","⚔️","🌸","🌑","💻","🪶","🐉","🦋","🔮","🌙","⭐","🦊","🐺"];
+    const charObj = {
+      id: `imported-${Date.now()}`,
+      name: importedChar.name,
+      desc: importedChar.desc,
+      personality: importedChar.personality,
+      tags: importedChar.tags || [],
+      author: "imported",
+      followers: 0,
+      msgs: "0",
+      color: CHAR_COLORS[Math.floor(Math.random() * CHAR_COLORS.length)],
+      avatar: CHAR_AVATARS[Math.floor(Math.random() * CHAR_AVATARS.length)],
+      firstMsg: importedChar.firstMsg,
+      tone: importedChar.tone || "neutral",
+      visibility: "private",
+      source: importedChar.source || "external",
+    };
+    onOpenImported(charObj);
+  };
 
   const CHAR_COLORS = ["#2d4a3e","#1e2a3a","#2a1e3a","#3a2a1e","#3a1e2a","#1e3a2a","#1a2a3a","#2a1a3a"];
   const CHAR_AVATARS = ["🧝‍♀️","🕵️","🤖","⚔️","🌸","🌑","💻","🪶","🐉","🦋","🔮","🌙","⭐","🦊","🐺"];
@@ -913,12 +990,80 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
   const inp = { width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", color:C.text, fontSize:14, fontFamily:"inherit", display:"block", transition:"border-color .2s", marginTop:6 };
 
   return (
-    <div style={{ padding:"15px 18px 32px" }}>
-      <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:16 }}>{t.createChar}</div>
-      <div style={{ width:"100%", background:C.card, border:`2px dashed ${C.border}`, borderRadius:16, height:86, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16, cursor:"pointer", fontSize:13, color:C.textMuted }}>
-        <span style={{ fontSize:24, marginRight:8 }}>🖼</span>{t.charAvatar}
+    <div style={{ padding:"15px 18px 32px", minHeight:"100%" }}>
+      <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:14, textAlign:"left" }}>{t.createChar}</div>
+
+      {/* Tabs: Create / Import */}
+      <div style={{ display:"flex", background:C.card, borderRadius:14, overflow:"hidden", border:`1px solid ${C.border}`, marginBottom:18 }}>
+        {[["create","✦ Create"],["import","🔗 Import from link"]].map(([tab, label]) => (
+          <button key={tab} onClick={()=>{ setActiveTab(tab); setImportError(""); setImportedChar(null); }} style={{ flex:1, padding:"10px 6px", fontSize:12, fontWeight:700, fontFamily:"inherit", color:activeTab===tab?C.bg:C.textMuted, background:activeTab===tab?C.mint:"transparent", transition:"all .2s", textAlign:"center" }}>{label}</button>
+        ))}
       </div>
+
+      {/* ── IMPORT TAB ── */}
+      {activeTab === "import" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div style={{ background:"rgba(126,207,179,.07)", border:`1px solid ${C.mintDim}`, borderRadius:14, padding:"12px 14px" }}>
+            <div style={{ fontSize:12, color:C.mint, fontWeight:700, marginBottom:6 }}>Supported platforms</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+              {["Character.AI","Janitor AI","Chub.ai","NovelAI","Tavern","Pygmalion","Spicy Chat"].map(p => (
+                <span key={p} style={{ fontSize:10, padding:"3px 9px", borderRadius:20, background:C.mintPale, color:C.mint, fontWeight:600 }}>{p}</span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize:12, color:C.text, fontWeight:600, marginBottom:6, textAlign:"left" }}>🔗 Paste character link or name</div>
+            <textarea
+              value={importUrl}
+              onChange={e=>setImportUrl(e.target.value)}
+              placeholder={"https://character.ai/chat/... \nor paste character name + description"}
+              rows={3}
+              style={{ ...inp, marginTop:0, resize:"none", lineHeight:1.5 }}
+            />
+          </div>
+
+          <button onClick={handleImport} disabled={importing || !importUrl.trim()} style={{ width:"100%", background:importUrl.trim()?C.mint:"rgba(126,207,179,.3)", color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"13px 0", borderRadius:14, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:importing?0.7:1, cursor:importUrl.trim()?"pointer":"not-allowed" }}>
+            {importing ? <><span style={{ display:"inline-block", animation:"spin 1s linear infinite" }}>◌</span> Importing...</> : "✦ Import Character"}
+          </button>
+
+          {importError && (
+            <div style={{ background:"rgba(224,124,124,.12)", border:`1px solid ${C.danger}`, borderRadius:12, padding:"10px 14px", fontSize:12, color:C.danger, lineHeight:1.5 }}>{importError}</div>
+          )}
+
+          {importedChar && (
+            <div style={{ background:C.card, border:`1.5px solid ${C.mint}`, borderRadius:16, overflow:"hidden" }}>
+              <div style={{ background:"#1a3d33", padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
+                <span style={{ fontSize:36 }}>
+                  {["🧝‍♀️","🕵️","🤖","⚔️","🌸","🌑","💻","🪶"][Math.floor(Math.random()*8)]}
+                </span>
+                <div>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16, color:C.mint }}>{importedChar.name}</div>
+                  {importedChar.source && <div style={{ fontSize:10, color:C.mintDim, marginTop:2 }}>Imported from {importedChar.source}</div>}
+                </div>
+              </div>
+              <div style={{ padding:"12px 16px", display:"flex", flexDirection:"column", gap:8 }}>
+                <div style={{ fontSize:12, color:C.textMuted, lineHeight:1.6 }}>{importedChar.desc}</div>
+                <div style={{ fontSize:11, color:C.textDim, lineHeight:1.5, fontStyle:"italic", borderLeft:`2px solid ${C.mintDim}`, paddingLeft:10 }}>{importedChar.firstMsg?.slice(0,120)}...</div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:4 }}>
+                  {(importedChar.tags||[]).map(tag => <span key={tag} className="pill">{tag}</span>)}
+                </div>
+                <div style={{ display:"flex", gap:8, marginTop:6 }}>
+                  <button onClick={useImportedChar} style={{ flex:2, background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:13, padding:"11px 0", borderRadius:12 }}>▶ Start Roleplay</button>
+                  <button onClick={()=>{ setName(importedChar.name); setDesc(importedChar.desc); setPersonality(importedChar.personality); setFirstMsg(importedChar.firstMsg); setTags((importedChar.tags||[]).join(", ")); setTone(importedChar.tone||"neutral"); setActiveTab("create"); }} style={{ flex:1, background:C.card, color:C.mint, fontFamily:"inherit", fontWeight:700, fontSize:12, padding:"11px 0", borderRadius:12, border:`1px solid ${C.mint}` }}>✏ Edit & Save</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── CREATE TAB ── */}
+      {activeTab === "create" && (
       <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
+        <div style={{ width:"100%", background:C.card, border:`2px dashed ${C.border}`, borderRadius:16, height:86, display:"flex", alignItems:"center", justifyContent:"flex-start", paddingLeft:18, cursor:"pointer", fontSize:13, color:C.textMuted }}>
+          <span style={{ fontSize:24, marginRight:8 }}>🖼</span>{t.charAvatar}
+        </div>
         <Fld label={t.charName}><input value={name} onChange={e=>setName(e.target.value)} style={inp} /></Fld>
         <Fld label={t.charDesc}><input value={desc} onChange={e=>setDesc(e.target.value)} style={inp} /></Fld>
         <Fld label={t.charPersonality}><textarea value={personality} onChange={e=>setPersonality(e.target.value)} rows={4} style={{ ...inp, resize:"none", lineHeight:1.6 }} /></Fld>
@@ -1007,6 +1152,7 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
           <button onClick={handlePublish} disabled={publishing} style={{ flex:2, padding:"11px", borderRadius:14, background:published?"#4a9e85":C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, opacity:publishing?0.7:1 }}>{publishing?"⏳...":published?"✓ Published!":t.publish}</button>
         </div>
       </div>
+      )} {/* end create tab */}
     </div>
   );
 }
@@ -1016,30 +1162,36 @@ function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, i
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   if (!isReg) return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"60vh", flexDirection:"column", gap:16, padding:"0 24px", textAlign:"center" }}>
-      <span style={{ fontSize:44 }}>💬</span>
-      <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:17 }}>Your chats live here</div>
-      <div style={{ fontSize:13, color:C.textMuted, lineHeight:1.6 }}>Sign in to save every roleplay session and continue right where you left off — any time.</div>
-      <button onClick={onShowAuth} style={{ background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"12px 28px", borderRadius:14 }}>Sign in to see chats</button>
+    <div style={{ padding:"14px 18px 24px", minHeight:"100%" }}>
+      <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:16 }}>{t.chats}</div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, padding:"40px 6px", textAlign:"center" }}>
+        <span style={{ fontSize:44 }}>💬</span>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:17 }}>Your chats live here</div>
+        <div style={{ fontSize:13, color:C.textMuted, lineHeight:1.6 }}>Sign in to save every roleplay session and continue right where you left off — any time.</div>
+        <button onClick={onShowAuth} style={{ background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"12px 28px", borderRadius:14 }}>Sign in to see chats</button>
+      </div>
     </div>
   );
 
   if (sessionsLoading) return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"50vh", color:C.textMuted, gap:10 }}>
+    <div style={{ padding:"14px 18px", minHeight:"100%", display:"flex", alignItems:"center", justifyContent:"center", height:"50vh", color:C.textMuted, gap:10 }}>
       <span style={{ display:"inline-block", animation:"spin 1s linear infinite", fontSize:20 }}>◌</span>
       <span style={{ fontSize:13 }}>Loading chats...</span>
     </div>
   );
 
   if (!sessions.length) return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"60vh", color:C.textMuted, flexDirection:"column", gap:12 }}>
-      <span style={{ fontSize:40 }}>💬</span>
-      <span style={{ fontSize:14 }}>{t.noChats}</span>
+    <div style={{ padding:"14px 18px 24px", minHeight:"100%" }}>
+      <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:16 }}>{t.chats}</div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:12, padding:"40px 0" }}>
+        <span style={{ fontSize:40 }}>💬</span>
+        <span style={{ fontSize:14, color:C.textMuted }}>{t.noChats}</span>
+      </div>
     </div>
   );
 
   return (
-    <div style={{ padding:"15px 14px 24px" }}>
+    <div style={{ padding:"14px 14px 24px", minHeight:"100%" }}>
       <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:14 }}>{t.chats}</div>
       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
         {sessions.map(session => {
@@ -1452,7 +1604,7 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
   const tabStyle = (id) => ({ flex:1, padding:"8px 4px", fontSize:10, fontWeight:700, fontFamily:"inherit", color:activeTab===id?pt.accent:C.textMuted, background:"transparent", borderBottom:`2px solid ${activeTab===id?pt.accent:"transparent"}`, textTransform:"uppercase", letterSpacing:.5, transition:"all .15s" });
 
   if (!isReg) return (
-    <div style={{ minHeight:"100%", background:pt.grad, padding:"18px 18px 32px" }}>
+    <div style={{ minHeight:"100%", background:pt.grad, padding:"14px 18px 32px" }}>
       <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:16, color:pt.accent }}>{t.profile}</div>
       <div style={{ background:"rgba(28,30,33,.85)", border:`1px solid ${C.border}`, borderRadius:20, padding:24, textAlign:"center", backdropFilter:"blur(8px)" }}>
         <div style={{ fontSize:44, marginBottom:12 }}>✦</div>
@@ -1641,8 +1793,8 @@ function MiniCharCard({ char, pt, isPrivate }) {
 }
 
 function Lbl({ children }) {
-  return <div style={{ fontSize:11, color:C.mint, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:8 }}>{children}</div>;
+  return <div style={{ fontSize:11, color:C.mint, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:8, textAlign:"left" }}>{children}</div>;
 }
 function Fld({ label, children }) {
-  return <div><label style={{ fontSize:11, color:C.mint, fontWeight:700, letterSpacing:.5, textTransform:"uppercase" }}>{label}</label>{children}</div>;
+  return <div><label style={{ fontSize:11, color:C.mint, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", display:"block", textAlign:"left" }}>{label}</label>{children}</div>;
 }
