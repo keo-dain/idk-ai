@@ -265,7 +265,6 @@ const AI_REPLIES = {
   ],
 };
 
-// ─── TIME AGO HELPER ──────────────────────────────────────────────────────────
 function timeAgo(dateStr, lang = "en") {
   if (!dateStr) return "";
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -316,9 +315,8 @@ export default function App() {
   const [showReg, setShowReg] = useState(false);
   const [isReg, setIsReg] = useState(false);
 
-  // ── Session state (replaces old "chats") ──────────────────────────────────
-  const [sessions, setSessions]       = useState([]);   // list for ChatsPage
-  const [activeSession, setActiveSession] = useState(null); // { ...session, messages:[] }
+  const [sessions, setSessions]       = useState([]);
+  const [activeSession, setActiveSession] = useState(null);
   const [sessionsLoading, setSessionsLoading] = useState(false);
 
   const [search, setSearch] = useState("");
@@ -335,7 +333,6 @@ export default function App() {
 
   const t = T[lang];
 
-  // ── Load sessions from Supabase ────────────────────────────────────────────
   const loadSessions = useCallback(async (userId) => {
     if (!userId) return;
     setSessionsLoading(true);
@@ -348,7 +345,6 @@ export default function App() {
     setSessionsLoading(false);
   }, []);
 
-  // Load messages for a session
   const loadMessages = async (sessionId) => {
     const { data } = await supabase
       .from("messages")
@@ -430,7 +426,6 @@ export default function App() {
     const charsArr = Array.isArray(chars) ? chars : [chars];
 
     if (isReg && supaUser) {
-      // Create new session in DB
       const { data: newSession, error } = await supabase
         .from("sessions")
         .insert({
@@ -445,7 +440,8 @@ export default function App() {
         .single();
 
       if (!error && newSession) {
-        const session = { ...newSession, messages: [] };
+        // Store customBg in memory only (not in DB — it's a blob URL)
+        const session = { ...newSession, messages: [], customBg: settings.customBg || null };
         setSessions(prev => [newSession, ...prev]);
         setActiveSession(session);
         setPage("chat");
@@ -453,7 +449,7 @@ export default function App() {
       }
     }
 
-    // Guest fallback (in-memory only)
+    // Guest fallback
     const id = Date.now();
     const session = {
       id,
@@ -461,6 +457,7 @@ export default function App() {
       messages: [],
       group: charsArr.length > 1,
       wallpaper: settings.wallpaper || "none",
+      customBg: settings.customBg || null,
       censorship: settings.censorship ?? true,
       tone: settings.tone || "neutral",
       response_size: settings.responseSize || "medium",
@@ -469,45 +466,29 @@ export default function App() {
     setPage("chat");
   };
 
-  // ── Continue existing session ──────────────────────────────────────────────
   const continueSession = async (session) => {
     const messages = await loadMessages(session.id);
     setActiveSession({ ...session, messages });
     setPage("chat");
   };
 
-  // ── Delete session ─────────────────────────────────────────────────────────
   const deleteSession = async (sessionId) => {
     await supabase.from("sessions").delete().eq("id", sessionId);
     setSessions(prev => prev.filter(s => s.id !== sessionId));
     if (activeSession?.id === sessionId) setActiveSession(null);
   };
 
-  // ── Send message ───────────────────────────────────────────────────────────
   const sendMessage = async (text) => {
     if (!isReg && msgCount >= FREE_LIMIT) { setShowReg(true); return; }
 
-    const userMsg = {
-      id: `local-${Date.now()}`,
-      role: "user",
-      text,
-    };
-
-    // Optimistic UI update
+    const userMsg = { id: `local-${Date.now()}`, role: "user", text };
     setActiveSession(prev => ({ ...prev, messages: [...(prev.messages || []), userMsg] }));
 
-    // Save user message to DB
     if (isReg && activeSession?.id && typeof activeSession.id === "string") {
-      await supabase.from("messages").insert({
-        session_id: activeSession.id,
-        role: "user",
-        text,
-      });
-      // Refresh sessions list (update last_used_at display)
+      await supabase.from("messages").insert({ session_id: activeSession.id, role: "user", text });
       loadSessions(supaUser.id);
     }
 
-    // Generate AI reply
     setTimeout(async () => {
       const session = activeSession;
       const charsArr = session.chars || [];
@@ -554,7 +535,6 @@ export default function App() {
         originalText: reply,
       };
 
-      // Save AI message to DB
       if (isReg && session?.id && typeof session.id === "string") {
         const { data: saved } = await supabase.from("messages").insert({
           session_id: session.id,
@@ -582,13 +562,11 @@ export default function App() {
       if (!prev || prev.id !== sessionId) return prev;
       return { ...prev, messages: prev.messages.map(m => m.id === msgId ? { ...m, text: newText } : m) };
     });
-    // Update in DB
     if (isReg && typeof msgId === "string" && !msgId.startsWith("local")) {
       supabase.from("messages").update({ text: newText }).eq("id", msgId);
     }
   };
 
-  // Re-translate AI messages on lang change
   useEffect(() => {
     if (!activeSession?.messages?.length) return;
     const translateMsgs = async () => {
@@ -699,7 +677,7 @@ function HomePage({ t, chars, search, setSearch, homeTab, setHomeTab, followed, 
     if (isLiked) { await supabase.from("liked_chars").delete().eq("user_id", uid).eq("char_id", charId); }
     else { await supabase.from("liked_chars").insert({ user_id: uid, char_id: charId }); }
   };
-  const toggleGroup  = (char) => setGroupChars(p => p.find(c=>c.id===char.id) ? p.filter(c=>c.id!==char.id) : [...p, char]);
+  const toggleGroup = (char) => setGroupChars(p => p.find(c=>c.id===char.id) ? p.filter(c=>c.id!==char.id) : [...p, char]);
   const display = homeTab==="following" ? chars.filter(c=>followed.includes(c.author)) : chars;
 
   return (
@@ -748,12 +726,22 @@ function HomePage({ t, chars, search, setSearch, homeTab, setHomeTab, followed, 
   );
 }
 
-// ─── CHAT SETUP MODAL ─────────────────────────────────────────────────────────
+// ─── CHAT SETUP MODAL (з підтримкою кастомного фото фону) ────────────────────
 function ChatSetupModal({ char, t, lang, onStart, onClose }) {
   const [wallpaper, setWallpaper] = useState("none");
+  const [customBg, setCustomBg] = useState(null);
   const [censor, setCensor] = useState(true);
   const [tone, setTone] = useState("neutral");
   const [size, setSize] = useState("medium");
+  const bgFileRef = useRef(null);
+
+  const handleBgUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setCustomBg(url);
+    setWallpaper("custom");
+  };
 
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.82)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:80, backdropFilter:"blur(5px)" }}>
@@ -766,15 +754,45 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
             <div style={{ fontSize:11, color:C.textMuted }}>{t.chatSettings}</div>
           </div>
         </div>
+
         <Lbl>{t.wallpaper}</Lbl>
-        <div style={{ display:"flex", gap:8, marginBottom:18, overflowX:"auto", paddingBottom:4 }}>
+        {/* Hidden file input for custom bg */}
+        <input ref={bgFileRef} type="file" accept="image/*" onChange={handleBgUpload} style={{ display:"none" }} />
+
+        <div style={{ display:"flex", gap:8, marginBottom:10, overflowX:"auto", paddingBottom:4 }}>
+          {/* Custom photo button */}
+          <button onClick={() => bgFileRef.current?.click()} style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+            <div style={{
+              width:46, height:46, borderRadius:12,
+              border:`2px solid ${wallpaper==="custom" ? C.mint : C.border}`,
+              background: customBg ? `url(${customBg}) center/cover` : C.card,
+              display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:18, overflow:"hidden"
+            }}>
+              {!customBg && "🖼"}
+            </div>
+            <span style={{ fontSize:10, color:wallpaper==="custom"?C.mint:C.textMuted, fontWeight:600, whiteSpace:"nowrap" }}>My photo</span>
+          </button>
+
           {WALLPAPERS.map(w => (
-            <button key={w.id} onClick={()=>setWallpaper(w.id)} style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-              <div style={{ width:46, height:46, borderRadius:12, ...w.css, border:`2px solid ${wallpaper===w.id?C.mint:C.border}`, backgroundSize:"cover" }} />
-              <span style={{ fontSize:10, color:wallpaper===w.id?C.mint:C.textMuted, fontWeight:600, whiteSpace:"nowrap" }}>{w.label}</span>
+            <button key={w.id} onClick={()=>{ setWallpaper(w.id); setCustomBg(null); }} style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+              <div style={{ width:46, height:46, borderRadius:12, ...w.css, border:`2px solid ${wallpaper===w.id && !customBg ? C.mint : C.border}`, backgroundSize:"cover" }} />
+              <span style={{ fontSize:10, color:wallpaper===w.id && !customBg ? C.mint : C.textMuted, fontWeight:600, whiteSpace:"nowrap" }}>{w.label}</span>
             </button>
           ))}
         </div>
+
+        {/* Custom bg preview */}
+        {customBg && (
+          <div style={{ marginBottom:14, borderRadius:12, overflow:"hidden", height:80, position:"relative" }}>
+            <img src={customBg} alt="bg preview" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+            <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,.35)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <span style={{ color:"#fff", fontSize:12, fontWeight:700 }}>✓ Custom photo selected</span>
+            </div>
+            <button onClick={()=>{ setCustomBg(null); setWallpaper("none"); }} style={{ position:"absolute", top:6, right:6, background:"rgba(0,0,0,.65)", color:"#fff", borderRadius:"50%", width:22, height:22, fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+          </div>
+        )}
+
         <Lbl>{t.censorship}</Lbl>
         <div style={{ display:"flex", gap:8, marginBottom:18 }}>
           {[[true,"🛡",t.censorOn],[false,"🔥",t.censorOff]].map(([val,icon,label])=>(
@@ -795,7 +813,7 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
             <button key={val} onClick={()=>setSize(val)} style={{ flex:1, padding:"9px 4px", borderRadius:12, border:`1.5px solid ${size===val?C.mint:C.border}`, background:size===val?C.mintPale:C.card, color:size===val?C.mint:C.textMuted, fontFamily:"inherit", fontWeight:700, fontSize:11, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}><span style={{ fontSize:15 }}>{icon}</span>{label}</button>
           ))}
         </div>
-        <button onClick={()=>onStart({ wallpaper, censorship:censor, tone, responseSize:size })} style={{ width:"100%", background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:15, padding:"14px 0", borderRadius:16, marginBottom:10 }}>▶ {t.startChat}</button>
+        <button onClick={()=>onStart({ wallpaper, customBg, censorship:censor, tone, responseSize:size })} style={{ width:"100%", background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:15, padding:"14px 0", borderRadius:16, marginBottom:10 }}>▶ {t.startChat}</button>
         <button onClick={onClose} style={{ width:"100%", color:C.textMuted, fontFamily:"inherit", fontSize:13, padding:"8px 0" }}>Cancel</button>
       </div>
     </div>
@@ -993,7 +1011,7 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
   );
 }
 
-// ─── CHATS PAGE (новий — показує сесії з Supabase) ────────────────────────────
+// ─── CHATS PAGE ───────────────────────────────────────────────────────────────
 function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, isReg, onShowAuth }) {
   const [confirmDelete, setConfirmDelete] = useState(null);
 
@@ -1032,7 +1050,6 @@ function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, i
 
           return (
             <div key={session.id} className="session-card" style={{ position:"relative" }}>
-              {/* Delete confirm overlay */}
               {confirmDelete === session.id && (
                 <div style={{ position:"absolute", inset:0, background:"rgba(14,15,17,.95)", borderRadius:16, zIndex:10, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:10, border:`1px solid ${C.danger}` }}>
                   <div style={{ fontSize:13, color:C.text, fontWeight:600 }}>Delete this chat?</div>
@@ -1047,22 +1064,17 @@ function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, i
               <div onClick={() => onContinue(session)} style={{ background:C.card, border:`1.5px solid ${isRecent ? C.mintDim : C.border}`, borderRadius:16, padding:"13px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12, transition:"all .18s" }}
                 onMouseEnter={e=>{ e.currentTarget.style.background=C.cardHover; e.currentTarget.style.borderColor=C.mint; }}
                 onMouseLeave={e=>{ e.currentTarget.style.background=C.card; e.currentTarget.style.borderColor=isRecent?C.mintDim:C.border; }}>
-
-                {/* Avatar */}
                 <div style={{ width:48, height:48, borderRadius:14, ...wp.css, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0, position:"relative" }}>
                   {chars.map(c => c.avatar || c.avatar_emoji || "🌟").join("")}
                   {isRecent && (
                     <div style={{ position:"absolute", top:-3, right:-3, width:10, height:10, borderRadius:"50%", background:C.mint, border:`2px solid ${C.card}`, boxShadow:`0 0 6px ${C.mint}` }} />
                   )}
                 </div>
-
-                {/* Info */}
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, marginBottom:3 }}>
                     {chars.map(c => c.name).join(", ")}
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    {/* Last used time */}
                     <span style={{ fontSize:11, color:isRecent ? C.mint : C.textMuted, display:"flex", alignItems:"center", gap:3 }}>
                       🕐 {timeAgo(session.last_used_at, lang)}
                     </span>
@@ -1070,19 +1082,11 @@ function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, i
                     <span style={{ fontSize:11, color:C.textDim }}>{session.censorship ? "🛡" : "🔥"}</span>
                   </div>
                 </div>
-
-                {/* Continue button + delete */}
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6, flexShrink:0 }}>
                   <div style={{ fontSize:11, fontWeight:700, color:C.mint, background:C.mintPale, padding:"4px 10px", borderRadius:20 }}>
                     {t.continueChat} →
                   </div>
-                  <button
-                    className="del-btn"
-                    onClick={e => { e.stopPropagation(); setConfirmDelete(session.id); }}
-                    style={{ fontSize:10, color:C.textDim, opacity:0, transition:"opacity .15s", padding:"2px 6px", borderRadius:6, background:"transparent" }}
-                  >
-                    🗑
-                  </button>
+                  <button className="del-btn" onClick={e => { e.stopPropagation(); setConfirmDelete(session.id); }} style={{ fontSize:10, color:C.textDim, opacity:0, transition:"opacity .15s", padding:"2px 6px", borderRadius:6, background:"transparent" }}>🗑</button>
                 </div>
               </div>
             </div>
@@ -1176,13 +1180,17 @@ function RoleText({ text, fontSize, lineHeight, isUser }) {
   );
 }
 
-// ─── CHAT PAGE ─────────────────────────────────────────────────────────────────
+// ─── CHAT PAGE (з підтримкою кастомного фото фону) ────────────────────────────
 function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts }) {
   const [input, setInput] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
   const bottomRef = useRef(null);
   const wp = WALLPAPERS.find(w=>w.id===chat.wallpaper)||WALLPAPERS[0];
+  // Custom bg support
+  const customBgStyle = chat.customBg
+    ? { backgroundImage:`url(${chat.customBg})`, backgroundSize:"cover", backgroundPosition:"center", backgroundRepeat:"no-repeat" }
+    : {};
   const tn = TONES.find(x=>x.id===chat.tone);
   useEffect(()=>{ bottomRef.current?.scrollIntoView({ behavior:"smooth" }); },[chat.messages]);
   const handleSend = () => { if(input.trim()){ onSend(input.trim()); setInput(""); } };
@@ -1191,7 +1199,7 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
   const chars = chat.chars || [];
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100vh", ...wp.css }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100vh", ...wp.css, ...customBgStyle }}>
       <div style={{ padding:"11px 15px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:10, background:"rgba(14,15,17,.88)", backdropFilter:"blur(10px)", flexShrink:0 }}>
         <button onClick={onBack} style={{ color:C.mint, fontSize:20, padding:"4px 8px 4px 0", lineHeight:1 }}>←</button>
         <div style={{ fontSize:24 }}>{chars.map(c=>c.avatar||c.avatar_emoji||"🌟").join(" ")}</div>
@@ -1251,36 +1259,63 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
   );
 }
 
-// ─── AUTH MODAL ───────────────────────────────────────────────────────────────
+// ─── AUTH MODAL (з реєстрацією: ім'я, опис, фото) ────────────────────────────
 function AuthModal({ t, C, onClose, onSuccess }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [bio, setBio] = useState("");
+  const [avatarPhoto, setAvatarPhoto] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const emailRef = useRef(email);
-  const passwordRef = useRef(password);
-  const modeRef = useRef(mode);
-  useEffect(() => { emailRef.current = email; }, [email]);
-  useEffect(() => { passwordRef.current = password; }, [password]);
-  useEffect(() => { modeRef.current = mode; }, [mode]);
+  const fileRef = useRef(null);
+
+  const handlePhotoSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarPhoto(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setAvatarPreview(ev.target.result);
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async () => {
-    const currentEmail = emailRef.current.trim();
-    const currentPassword = passwordRef.current;
-    const currentMode = modeRef.current;
-    if (!currentEmail || !currentPassword) { setError("Please fill in both email and password."); return; }
+    const em = email.trim();
+    const pw = password;
+    if (!em || !pw) { setError("Please fill in email and password."); return; }
     setError(""); setInfo(""); setLoading(true);
     try {
-      if (currentMode === "register") {
-        const { error: e } = await supabase.auth.signUp({ email: currentEmail, password: currentPassword });
-        if (e) setError(e.message);
-        else setInfo("Check your email to confirm your account!");
+      if (mode === "register") {
+        const { data, error: e } = await supabase.auth.signUp({ email: em, password: pw });
+        if (e) { setError(e.message); setLoading(false); return; }
+        const userId = data?.user?.id;
+        if (userId) {
+          // Upload avatar photo if chosen
+          let photoUrl = null;
+          if (avatarPhoto) {
+            const ext = avatarPhoto.name.split(".").pop();
+            const path = `${userId}/avatar.${ext}`;
+            await supabase.storage.from("avatars").upload(path, avatarPhoto, { upsert: true });
+            const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+            photoUrl = urlData.publicUrl + "?t=" + Date.now();
+          }
+          // Save profile with name, bio, photo
+          await supabase.from("profiles").upsert({
+            id: userId,
+            display_name: displayName.trim() || em.split("@")[0],
+            bio: bio.trim(),
+            avatar_emoji: "🌙",
+            avatar_photo: photoUrl,
+          });
+        }
+        setInfo("Check your email to confirm your account!");
       } else {
-        const { data, error: e } = await supabase.auth.signInWithPassword({ email: currentEmail, password: currentPassword });
-        if (e) setError(e.message);
-        else if (data?.user) onSuccess(data.user);
+        const { data, error: e } = await supabase.auth.signInWithPassword({ email: em, password: pw });
+        if (e) { setError(e.message); setLoading(false); return; }
+        if (data?.user) onSuccess(data.user);
         else setError("Login failed. Please try again.");
       }
     } catch { setError("Something went wrong. Please try again."); }
@@ -1291,21 +1326,71 @@ function AuthModal({ t, C, onClose, onSuccess }) {
 
   return (
     <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,.82)", display:"flex", alignItems:"center", justifyContent:"center", padding:24, zIndex:100, backdropFilter:"blur(8px)" }}>
-      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:22, padding:28, maxWidth:320, width:"100%" }}>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:22, padding:28, maxWidth:340, width:"100%", maxHeight:"90vh", overflowY:"auto" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
           <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>{mode === "login" ? "Sign In" : "Create Account"}</div>
           <button onClick={onClose} style={{ color:C.textMuted, fontSize:22, lineHeight:1, padding:"2px 6px" }}>×</button>
         </div>
+
         {error && <div style={{ background:"rgba(224,124,124,.15)", border:"1px solid #e07c7c", borderRadius:10, padding:"8px 12px", fontSize:12, color:"#e07c7c", marginBottom:12, lineHeight:1.5 }}>{error}</div>}
         {info  && <div style={{ background:"rgba(126,207,179,.15)", border:`1px solid ${C.mint}`, borderRadius:10, padding:"8px 12px", fontSize:12, color:C.mint, marginBottom:12, lineHeight:1.5 }}>{info}</div>}
+
+        {/* Registration extras — показуються тільки при реєстрації */}
+        {mode === "register" && (
+          <>
+            {/* Avatar photo upload */}
+            <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoSelect} style={{ display:"none" }} />
+            <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:14 }}>
+              <div
+                onClick={() => fileRef.current?.click()}
+                style={{ width:64, height:64, borderRadius:"50%", background:C.surface, border:`2px dashed ${C.mint}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", overflow:"hidden", flexShrink:0, transition:"border-color .2s" }}
+              >
+                {avatarPreview
+                  ? <img src={avatarPreview} alt="preview" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                  : <span style={{ fontSize:26 }}>📷</span>}
+              </div>
+              <div>
+                <div style={{ fontSize:12, fontWeight:700, color:C.mint, marginBottom:5 }}>Profile photo</div>
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  style={{ fontSize:11, color:C.textMuted, fontFamily:"inherit", padding:"5px 12px", borderRadius:20, border:`1px solid ${C.border}`, background:C.surface, cursor:"pointer" }}
+                >
+                  {avatarPreview ? "Change photo" : "Upload photo"}
+                </button>
+                {avatarPreview && (
+                  <button
+                    onClick={() => { setAvatarPhoto(null); setAvatarPreview(null); }}
+                    style={{ fontSize:11, color:C.danger, fontFamily:"inherit", padding:"5px 10px", borderRadius:20, border:"none", background:"transparent", cursor:"pointer", marginLeft:4 }}
+                  >✕ Remove</button>
+                )}
+              </div>
+            </div>
+
+            <input
+              value={displayName}
+              onChange={e => setDisplayName(e.target.value)}
+              placeholder="Display name (optional)"
+              style={inp}
+            />
+            <textarea
+              value={bio}
+              onChange={e => setBio(e.target.value)}
+              placeholder="Short bio (optional)"
+              rows={2}
+              style={{ ...inp, resize:"none", lineHeight:1.5 }}
+            />
+          </>
+        )}
+
         <input value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()} placeholder="Email" type="email" autoComplete="email" style={inp} />
         <input value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()} placeholder="Password" type="password" autoComplete={mode==="register"?"new-password":"current-password"} style={{ ...inp, marginBottom:16 }} />
+
         <button onClick={handleSubmit} disabled={loading} style={{ width:"100%", background:loading?"rgba(126,207,179,.4)":C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"13px 0", borderRadius:14, marginBottom:10, cursor:loading?"not-allowed":"pointer", transition:"all .2s" }}>
           {loading ? "⏳ Loading..." : mode === "login" ? "Sign In" : "Create Account"}
         </button>
         <div style={{ textAlign:"center", fontSize:12, color:C.textMuted }}>
           {mode === "login" ? "No account? " : "Have an account? "}
-          <button onClick={()=>{setMode(m=>m==="login"?"register":"login");setError("");setInfo("");}} style={{ color:C.mint, fontWeight:700, fontFamily:"inherit", fontSize:12 }}>
+          <button onClick={()=>{setMode(m=>m==="login"?"register":"login");setError("");setInfo("");setAvatarPhoto(null);setAvatarPreview(null);setDisplayName("");setBio("");}} style={{ color:C.mint, fontWeight:700, fontFamily:"inherit", fontSize:12 }}>
             {mode === "login" ? "Sign up" : "Sign in"}
           </button>
         </div>
