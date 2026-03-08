@@ -588,9 +588,10 @@ export default function App() {
   );
 
   return (
-    <div style={{ fontFamily:"'DM Sans','Segoe UI',sans-serif", background:C.bg, color:C.text, height:"100vh", display:"flex", flexDirection:"column", maxWidth:430, margin:"0 auto", position:"relative", overflow:"hidden" }}>
+    <div style={{ fontFamily:"'DM Sans','Segoe UI',sans-serif", background:C.bg, color:C.text, width:"100%", height:"100dvh", minHeight:"100dvh", maxHeight:"100dvh", display:"flex", flexDirection:"column", maxWidth:430, margin:"0 auto", position:"relative", overflow:"hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Syne:wght@600;700;800&display=swap');
+        html,body,#root{height:100%;height:100dvh;overflow:hidden;margin:0;padding:0}
         *{box-sizing:border-box;margin:0;padding:0}
         ::-webkit-scrollbar{width:3px}
         ::-webkit-scrollbar-thumb{background:#2a2d31;border-radius:2px}
@@ -620,11 +621,11 @@ export default function App() {
         </div>
       )}
 
-      <div style={{ flex:1, overflowY:"auto", overflowX:"hidden" }}>
-        {page==="home"    && <HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} likedChars={likedChars} setLikedChars={setLikedChars} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} />}
-        {page==="create"  && <CreatePage  t={t} lang={lang} supaUser={supaUser} onCharCreated={()=>supaUser&&loadMyChars(supaUser.id)} onOpenImported={(char)=>{ openChat(char, { tone: char.tone||"neutral" }); }} />}
-        {page==="chats"   && <ChatsPage   t={t} sessions={sessions} sessionsLoading={sessionsLoading} onContinue={continueSession} onDelete={deleteSession} lang={lang} isReg={isReg} onShowAuth={()=>setShowReg(true)} />}
-        {page==="profile" && <ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} />}
+      <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", display:"flex", flexDirection:"column", minHeight:0 }}>
+        {page==="home"    && <div style={{ flex:1 }}><HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} likedChars={likedChars} setLikedChars={setLikedChars} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} /></div>}
+        {page==="create"  && <div style={{ flex:1 }}><CreatePage  t={t} lang={lang} supaUser={supaUser} onCharCreated={()=>supaUser&&loadMyChars(supaUser.id)} onOpenImported={(char)=>{ openChat(char, { tone: char.tone||"neutral" }); }} /></div>}
+        {page==="chats"   && <div style={{ flex:1 }}><ChatsPage   t={t} sessions={sessions} sessionsLoading={sessionsLoading} onContinue={continueSession} onDelete={deleteSession} lang={lang} isReg={isReg} onShowAuth={()=>setShowReg(true)} /></div>}
+        {page==="profile" && <div style={{ flex:1 }}><ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} /></div>}
         {page==="chat" && activeSession && <ChatPage t={t} chat={activeSession} onSend={sendMessage} onBack={() => { setPage("chats"); loadSessions(supaUser?.id); }} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} />}
       </div>
 
@@ -990,7 +991,7 @@ Respond ONLY with a valid JSON object (no markdown, no explanation):
   const inp = { width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", color:C.text, fontSize:14, fontFamily:"inherit", display:"block", transition:"border-color .2s", marginTop:6 };
 
   return (
-    <div style={{ padding:"15px 18px 32px", minHeight:"100%" }}>
+    <div style={{ padding:"15px 18px 32px",  }}>
       <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:14, textAlign:"left" }}>{t.createChar}</div>
 
       {/* Tabs: Create / Import */}
@@ -1162,7 +1163,7 @@ function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, i
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   if (!isReg) return (
-    <div style={{ padding:"14px 18px 24px", minHeight:"100%" }}>
+    <div style={{ padding:"14px 18px 24px",  }}>
       <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:16 }}>{t.chats}</div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, padding:"40px 6px", textAlign:"center" }}>
         <span style={{ fontSize:44 }}>💬</span>
@@ -1174,14 +1175,14 @@ function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, i
   );
 
   if (sessionsLoading) return (
-    <div style={{ padding:"14px 18px", minHeight:"100%", display:"flex", alignItems:"center", justifyContent:"center", height:"50vh", color:C.textMuted, gap:10 }}>
+    <div style={{ padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"center", color:C.textMuted, gap:10, flex:1 }}>
       <span style={{ display:"inline-block", animation:"spin 1s linear infinite", fontSize:20 }}>◌</span>
       <span style={{ fontSize:13 }}>Loading chats...</span>
     </div>
   );
 
   if (!sessions.length) return (
-    <div style={{ padding:"14px 18px 24px", minHeight:"100%" }}>
+    <div style={{ padding:"14px 18px 24px",  }}>
       <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:16 }}>{t.chats}</div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:12, padding:"40px 0" }}>
         <span style={{ fontSize:40 }}>💬</span>
@@ -1191,7 +1192,7 @@ function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, i
   );
 
   return (
-    <div style={{ padding:"14px 14px 24px", minHeight:"100%" }}>
+    <div style={{ padding:"14px 14px 24px",  }}>
       <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:14 }}>{t.chats}</div>
       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
         {sessions.map(session => {
@@ -1351,7 +1352,7 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
   const chars = chat.chars || [];
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100vh", ...wp.css, ...customBgStyle }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", flex:1, ...wp.css, ...customBgStyle }}>
       <div style={{ padding:"11px 15px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:10, background:"rgba(14,15,17,.88)", backdropFilter:"blur(10px)", flexShrink:0 }}>
         <button onClick={onBack} style={{ color:C.mint, fontSize:20, padding:"4px 8px 4px 0", lineHeight:1 }}>←</button>
         <div style={{ fontSize:24 }}>{chars.map(c=>c.avatar||c.avatar_emoji||"🌟").join(" ")}</div>
@@ -1604,7 +1605,7 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
   const tabStyle = (id) => ({ flex:1, padding:"8px 4px", fontSize:10, fontWeight:700, fontFamily:"inherit", color:activeTab===id?pt.accent:C.textMuted, background:"transparent", borderBottom:`2px solid ${activeTab===id?pt.accent:"transparent"}`, textTransform:"uppercase", letterSpacing:.5, transition:"all .15s" });
 
   if (!isReg) return (
-    <div style={{ minHeight:"100%", background:pt.grad, padding:"14px 18px 32px" }}>
+    <div style={{ , background:pt.grad, padding:"14px 18px 32px" }}>
       <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:16, color:pt.accent }}>{t.profile}</div>
       <div style={{ background:"rgba(28,30,33,.85)", border:`1px solid ${C.border}`, borderRadius:20, padding:24, textAlign:"center", backdropFilter:"blur(8px)" }}>
         <div style={{ fontSize:44, marginBottom:12 }}>✦</div>
@@ -1616,7 +1617,7 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
   );
 
   return (
-    <div style={{ minHeight:"100%", background:pt.grad }}>
+    <div style={{ , background:pt.grad }}>
       <div style={{ padding:"18px 18px 0", position:"relative" }}>
         <div style={{ position:"absolute", top:0, left:0, right:0, height:100, background:`linear-gradient(180deg, ${pt.accent}22 0%, transparent 100%)`, pointerEvents:"none" }} />
         <div style={{ position:"relative", display:"flex", alignItems:"flex-end", gap:14, marginBottom:14 }}>
