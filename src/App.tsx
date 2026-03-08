@@ -290,13 +290,31 @@ export default function App() {
   const [userProfile, setUserProfile] = useState({ displayName: "", bio: "", avatarEmoji: "🌙" });
   const t = T[lang];
 
+  const loadUserData = async (user) => {
+    const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+    if (profile) {
+      setUserProfile({
+        displayName: profile.display_name || "",
+        bio: profile.bio || "",
+        avatarEmoji: profile.avatar_emoji || "🌙",
+        avatarPhoto: profile.avatar_photo || null,
+      });
+      if (profile.profile_theme) setProfileTheme(profile.profile_theme);
+      if (profile.text_scale) setTextScale(profile.text_scale);
+    }
+    const { data: likes } = await supabase.from("liked_chars").select("char_id").eq("user_id", user.id);
+    if (likes) setLikedChars(likes.map(l => l.char_id));
+    const { data: followsData } = await supabase.from("follows").select("author").eq("user_id", user.id);
+    if (followsData) setFollowed(followsData.map(f => f.author));
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) { setSupaUser(session.user); setIsReg(true); }
+      if (session?.user) { setSupaUser(session.user); setIsReg(true); loadUserData(session.user); }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) { setSupaUser(session.user); setIsReg(true); }
-      else { setSupaUser(null); setIsReg(false); }
+      if (session?.user) { setSupaUser(session.user); setIsReg(true); loadUserData(session.user); }
+      else { setSupaUser(null); setIsReg(false); setLikedChars([]); setFollowed([]); setUserProfile({ displayName:"", bio:"", avatarEmoji:"🌙" }); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -491,8 +509,24 @@ export default function App() {
 // ─── HOME ────────────────────────────────────────────────────────────────────
 function HomePage({ t, chars, search, setSearch, homeTab, setHomeTab, followed, setFollowed, likedChars, setLikedChars, openChat, groupMode, setGroupMode, groupChars, setGroupChars, lang }) {
   const [setupChar, setSetupChar] = useState(null);
-  const toggleFollow = (e, author) => { e.stopPropagation(); setFollowed(p => p.includes(author) ? p.filter(f=>f!==author) : [...p, author]); };
-  const toggleLike   = (e, charId) => { e.stopPropagation(); setLikedChars(p => p.includes(charId) ? p.filter(f=>f!==charId) : [...p, charId]); };
+  const toggleFollow = async (e, author) => {
+    e.stopPropagation();
+    const isFollowed = followed.includes(author);
+    setFollowed(p => isFollowed ? p.filter(f=>f!==author) : [...p, author]);
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    if (!uid) return;
+    if (isFollowed) { await supabase.from("follows").delete().eq("user_id", uid).eq("author", author); }
+    else { await supabase.from("follows").insert({ user_id: uid, author }); }
+  };
+  const toggleLike = async (e, charId) => {
+    e.stopPropagation();
+    const isLiked = likedChars.includes(charId);
+    setLikedChars(p => isLiked ? p.filter(f=>f!==charId) : [...p, charId]);
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    if (!uid) return;
+    if (isLiked) { await supabase.from("liked_chars").delete().eq("user_id", uid).eq("char_id", charId); }
+    else { await supabase.from("liked_chars").insert({ user_id: uid, char_id: charId }); }
+  };
   const toggleGroup  = (char) => setGroupChars(p => p.find(c=>c.id===char.id) ? p.filter(c=>c.id!==char.id) : [...p, char]);
   const display = homeTab==="following" ? chars.filter(c=>followed.includes(c.author)) : chars;
 
@@ -1088,6 +1122,7 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
       const { data } = supabase.storage.from("avatars").getPublicUrl(path);
       const url = data.publicUrl + "?t=" + Date.now();
       setUserProfile(prev => ({ ...prev, avatarPhoto: url }));
+      if (supaUser) await supabase.from("profiles").upsert({ id: supaUser.id, avatar_photo: url });
     } catch(err) { alert("Something went wrong."); }
     setUploadingPhoto(false);
   };
@@ -1107,10 +1142,17 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
     setIsReg(false);
   };
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
     setUserProfile(prev => ({ ...prev, displayName: editName, bio: editBio, avatarEmoji: editAvatar }));
     setEditingProfile(false);
     setShowAvatarPicker(false);
+    if (!supaUser) return;
+    await supabase.from("profiles").upsert({
+      id: supaUser.id,
+      display_name: editName,
+      bio: editBio,
+      avatar_emoji: editAvatar,
+    });
   };
 
   const displayName = userProfile.displayName || supaUser?.email?.split("@")[0] || "You";
