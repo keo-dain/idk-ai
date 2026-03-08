@@ -330,6 +330,15 @@ export default function App() {
   const [supaUser, setSupaUser] = useState(null);
   const [userProfile, setUserProfile] = useState({ displayName: "", bio: "", avatarEmoji: "🌙" });
   const [myCharsDB, setMyCharsDB] = useState([]);
+  const [publicUsers, setPublicUsers] = useState([]);
+
+  const loadPublicUsers = useCallback(async () => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, display_name, bio, avatar_emoji, avatar_photo")
+      .limit(30);
+    if (data) setPublicUsers(data);
+  }, []);
 
   const t = T[lang];
 
@@ -385,6 +394,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    loadPublicUsers();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setSupaUser(session.user);
@@ -622,7 +632,7 @@ export default function App() {
       )}
 
       <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", display:"flex", flexDirection:"column", minHeight:0 }}>
-        {page==="home"    && <div style={{ flex:1 }}><HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} likedChars={likedChars} setLikedChars={setLikedChars} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} /></div>}
+        {page==="home"    && <div style={{ flex:1 }}><HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} likedChars={likedChars} setLikedChars={setLikedChars} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} publicUsers={publicUsers} supaUser={supaUser} /></div>}
         {page==="create"  && <div style={{ flex:1 }}><CreatePage  t={t} lang={lang} supaUser={supaUser} onCharCreated={()=>supaUser&&loadMyChars(supaUser.id)} onOpenImported={(char)=>{ openChat(char, { tone: char.tone||"neutral" }); }} /></div>}
         {page==="chats"   && <div style={{ flex:1 }}><ChatsPage   t={t} sessions={sessions} sessionsLoading={sessionsLoading} onContinue={continueSession} onDelete={deleteSession} lang={lang} isReg={isReg} onShowAuth={()=>setShowReg(true)} /></div>}
         {page==="profile" && <div style={{ flex:1 }}><ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} /></div>}
@@ -658,8 +668,41 @@ export default function App() {
 }
 
 // ─── HOME ─────────────────────────────────────────────────────────────────────
-function HomePage({ t, chars, search, setSearch, homeTab, setHomeTab, followed, setFollowed, likedChars, setLikedChars, openChat, groupMode, setGroupMode, groupChars, setGroupChars, lang }) {
+function HomePage({ t, chars, search, setSearch, homeTab, setHomeTab, followed, setFollowed, likedChars, setLikedChars, openChat, groupMode, setGroupMode, groupChars, setGroupChars, lang, publicUsers, supaUser }) {
   const [setupChar, setSetupChar] = useState(null);
+  const [viewProfile, setViewProfile] = useState(null);
+  const [translatedDescs, setTranslatedDescs] = useState({});
+
+  // Translate descriptions when lang changes
+  useEffect(() => {
+    if (lang === "en") { setTranslatedDescs({}); return; }
+    const translate = async () => {
+      const langNames = { ru:"Russian", uk:"Ukrainian", de:"German", it:"Italian", fr:"French", es:"Spanish", pl:"Polish" };
+      const target = langNames[lang];
+      if (!target) return;
+      const toTranslate = chars.filter(c => !translatedDescs[`${c.id}_${lang}`]);
+      if (!toTranslate.length) return;
+      try {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({
+            model:"claude-sonnet-4-20250514", max_tokens:600,
+            messages:[{ role:"user", content:`Translate these character descriptions to ${target}. Return ONLY a JSON object like {"1":"translation","2":"translation",...} no explanation:\n${toTranslate.map(c=>`${c.id}: ${c.desc}`).join("\n")}` }]
+          })
+        });
+        const data = await res.json();
+        const raw = data.content?.[0]?.text?.replace(/```json|```/g,"").trim() || "{}";
+        const parsed = JSON.parse(raw);
+        const newDescs = {};
+        Object.entries(parsed).forEach(([id, desc]) => { newDescs[`${id}_${lang}`] = desc; });
+        setTranslatedDescs(prev => ({...prev, ...newDescs}));
+      } catch {}
+    };
+    translate();
+  }, [lang, chars]); // eslint-disable-line
+
+  const getDesc = (char) => translatedDescs[`${char.id}_${lang}`] || char.desc;
+
   const toggleFollow = async (e, author) => {
     e.stopPropagation();
     const isFollowed = followed.includes(author);
@@ -680,6 +723,7 @@ function HomePage({ t, chars, search, setSearch, homeTab, setHomeTab, followed, 
   };
   const toggleGroup = (char) => setGroupChars(p => p.find(c=>c.id===char.id) ? p.filter(c=>c.id!==char.id) : [...p, char]);
   const display = homeTab==="following" ? chars.filter(c=>followed.includes(c.author)) : chars;
+  const isPeopleTab = homeTab === "people";
 
   return (
     <div style={{ padding:"14px 13px 8px" }}>
@@ -687,42 +731,126 @@ function HomePage({ t, chars, search, setSearch, homeTab, setHomeTab, followed, 
         <span style={{ position:"absolute", left:13, top:"50%", transform:"translateY(-50%)", color:C.mintDim, fontSize:15 }}>⌕</span>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t.search} style={{ width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"11px 13px 11px 36px", color:C.text, fontSize:14, fontFamily:"inherit" }} />
       </div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:13 }}>
-        <div style={{ display:"flex", background:C.card, borderRadius:12, overflow:"hidden", border:`1px solid ${C.border}` }}>
-          {["popular","new","following"].map(tab => (
-            <button key={tab} onClick={()=>setHomeTab(tab)} style={{ padding:"7px 12px", fontSize:11, fontWeight:700, fontFamily:"inherit", color:homeTab===tab?C.bg:C.textMuted, background:homeTab===tab?C.mint:"transparent", textTransform:"capitalize" }}>{t[tab]||tab}</button>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:13, gap:8 }}>
+        <div style={{ display:"flex", background:C.card, borderRadius:12, overflow:"hidden", border:`1px solid ${C.border}`, flex:1 }}>
+          {["popular","new","following","people"].map(tab => (
+            <button key={tab} onClick={()=>setHomeTab(tab)} style={{ flex:1, padding:"7px 6px", fontSize:10, fontWeight:700, fontFamily:"inherit", color:homeTab===tab?C.bg:C.textMuted, background:homeTab===tab?C.mint:"transparent", textTransform:"capitalize" }}>
+              {tab==="people" ? "👥" : ""}{t[tab]||tab}
+            </button>
           ))}
         </div>
-        <button onClick={()=>{ setGroupMode(g=>!g); if(groupMode) setGroupChars([]); }} style={{ padding:"7px 11px", fontSize:11, fontWeight:700, fontFamily:"inherit", color:groupMode?C.bg:C.mint, background:groupMode?C.mint:C.mintPale, borderRadius:12 }}>⊕ {t.groupChat}</button>
+        {!isPeopleTab && <button onClick={()=>{ setGroupMode(g=>!g); if(groupMode) setGroupChars([]); }} style={{ padding:"7px 11px", fontSize:11, fontWeight:700, fontFamily:"inherit", color:groupMode?C.bg:C.mint, background:groupMode?C.mint:C.mintPale, borderRadius:12, flexShrink:0 }}>⊕ {t.groupChat}</button>}
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        {display.map(char => {
-          const inG = groupChars.find(c=>c.id===char.id);
-          const liked = likedChars.includes(char.id);
-          return (
-            <div key={char.id} className="cc" onClick={()=>groupMode?toggleGroup(char):setSetupChar(char)} style={{ background:C.card, borderRadius:16, overflow:"hidden", border:`1.5px solid ${inG?C.mint:C.border}`, cursor:"pointer", position:"relative" }}>
-              {inG && <div style={{ position:"absolute", top:8, right:8, background:C.mint, borderRadius:"50%", width:20, height:20, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:C.bg, fontWeight:800, zIndex:2 }}>✓</div>}
-              <div style={{ background:char.color, height:86, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, position:"relative" }}>
-                {char.avatar}
-                <button onClick={e=>toggleLike(e,char.id)} style={{ position:"absolute", bottom:6, right:8, fontSize:16, background:"rgba(14,15,17,.6)", borderRadius:"50%", width:26, height:26, display:"flex", alignItems:"center", justifyContent:"center", border:`1px solid ${liked?"#e07c7c":C.border}` }}>
-                  {liked ? "❤️" : "🤍"}
-                </button>
-              </div>
-              <div style={{ padding:"10px 10px 12px" }}>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, marginBottom:3 }}>{char.name}</div>
-                <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.4, marginBottom:7, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{char.desc}</div>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:3, marginBottom:7 }}>{char.tags.map(tag=><span key={tag} className="pill">{tag}</span>)}</div>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                  <div style={{ fontSize:10, color:C.textDim }}>{t.by} <span style={{ color:C.mint }}>{char.author}</span></div>
-                  <button onClick={e=>toggleFollow(e,char.author)} style={{ fontSize:10, padding:"3px 9px", borderRadius:20, fontFamily:"inherit", fontWeight:700, color:followed.includes(char.author)?C.bg:C.mint, background:followed.includes(char.author)?C.mint:C.mintPale }}>{followed.includes(char.author)?"✓":t.follow}</button>
+
+      {/* ── PEOPLE TAB ── */}
+      {isPeopleTab && (
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {(publicUsers||[]).length === 0 && (
+            <div style={{ textAlign:"center", color:C.textMuted, padding:"40px 0", fontSize:13 }}>
+              <div style={{ fontSize:36, marginBottom:10 }}>👥</div>
+              No users yet. Be the first!
+            </div>
+          )}
+          {(publicUsers||[]).filter(u => u.id !== supaUser?.id).map(user => {
+            const name = user.display_name || "Anonymous";
+            const isMe = user.id === supaUser?.id;
+            return (
+              <div key={user.id} onClick={()=>setViewProfile(viewProfile?.id===user.id?null:user)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"13px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12, transition:"all .18s" }}
+                onMouseEnter={e=>{ e.currentTarget.style.background=C.cardHover; e.currentTarget.style.borderColor=C.mint; }}
+                onMouseLeave={e=>{ e.currentTarget.style.background=C.card; e.currentTarget.style.borderColor=C.border; }}>
+                <div style={{ width:46, height:46, borderRadius:"50%", background:C.surface, border:`2px solid ${C.mint}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, overflow:"hidden", flexShrink:0 }}>
+                  {user.avatar_photo
+                    ? <img src={user.avatar_photo} alt={name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                    : (user.avatar_emoji || "🌙")}
                 </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:14, color:C.text }}>{name} {isMe && <span style={{ fontSize:10, color:C.mint }}>(you)</span>}</div>
+                  {user.bio && <div style={{ fontSize:11, color:C.textMuted, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.bio}</div>}
+                </div>
+                <span style={{ fontSize:16, color:C.textDim }}>›</span>
+              </div>
+            );
+          })}
+
+          {/* Expanded profile view */}
+          {viewProfile && (
+            <div style={{ background:C.surface, border:`1.5px solid ${C.mint}`, borderRadius:18, overflow:"hidden", animation:"fu .2s ease" }}>
+              <div style={{ background:`linear-gradient(160deg,#0e1a16,${C.bg})`, padding:"18px 16px 14px", display:"flex", alignItems:"center", gap:14 }}>
+                <div style={{ width:60, height:60, borderRadius:"50%", background:C.card, border:`3px solid ${C.mint}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:30, overflow:"hidden", flexShrink:0 }}>
+                  {viewProfile.avatar_photo
+                    ? <img src={viewProfile.avatar_photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                    : (viewProfile.avatar_emoji || "🌙")}
+                </div>
+                <div>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:17, color:C.mint }}>{viewProfile.display_name || "Anonymous"}</div>
+                  {viewProfile.bio && <div style={{ fontSize:12, color:C.textMuted, marginTop:3, lineHeight:1.5 }}>{viewProfile.bio}</div>}
+                </div>
+                <button onClick={()=>setViewProfile(null)} style={{ marginLeft:"auto", color:C.textDim, fontSize:20, padding:"4px 8px" }}>×</button>
+              </div>
+              <div style={{ padding:"12px 16px 16px" }}>
+                <div style={{ fontSize:11, color:C.mint, fontWeight:700, textTransform:"uppercase", letterSpacing:.5, marginBottom:8 }}>Public Characters</div>
+                <PublicUserChars userId={viewProfile.id} />
               </div>
             </div>
-          );
-        })}
-        {display.length===0 && <div style={{ gridColumn:"1/-1", textAlign:"center", color:C.textMuted, padding:"40px 0", fontSize:13 }}>{homeTab==="following"?"Follow some authors first.":"No characters found."}</div>}
-      </div>
+          )}
+        </div>
+      )}
+
+      {/* ── CHARS GRID ── */}
+      {!isPeopleTab && (
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          {display.map(char => {
+            const inG = groupChars.find(c=>c.id===char.id);
+            const liked = likedChars.includes(char.id);
+            return (
+              <div key={char.id} className="cc" onClick={()=>groupMode?toggleGroup(char):setSetupChar(char)} style={{ background:C.card, borderRadius:16, overflow:"hidden", border:`1.5px solid ${inG?C.mint:C.border}`, cursor:"pointer", position:"relative" }}>
+                {inG && <div style={{ position:"absolute", top:8, right:8, background:C.mint, borderRadius:"50%", width:20, height:20, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:C.bg, fontWeight:800, zIndex:2 }}>✓</div>}
+                <div style={{ background:char.color, height:86, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, position:"relative" }}>
+                  {char.avatar}
+                  <button onClick={e=>toggleLike(e,char.id)} style={{ position:"absolute", bottom:6, right:8, fontSize:16, background:"rgba(14,15,17,.6)", borderRadius:"50%", width:26, height:26, display:"flex", alignItems:"center", justifyContent:"center", border:`1px solid ${liked?"#e07c7c":C.border}` }}>
+                    {liked ? "❤️" : "🤍"}
+                  </button>
+                </div>
+                <div style={{ padding:"10px 10px 12px" }}>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, marginBottom:3 }}>{char.name}</div>
+                  <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.4, marginBottom:7, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{getDesc(char)}</div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:3, marginBottom:7 }}>{char.tags.map(tag=><span key={tag} className="pill">{tag}</span>)}</div>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <div style={{ fontSize:10, color:C.textDim }}>{t.by} <span style={{ color:C.mint }}>{char.author}</span></div>
+                    <button onClick={e=>toggleFollow(e,char.author)} style={{ fontSize:10, padding:"3px 9px", borderRadius:20, fontFamily:"inherit", fontWeight:700, color:followed.includes(char.author)?C.bg:C.mint, background:followed.includes(char.author)?C.mint:C.mintPale }}>{followed.includes(char.author)?"✓":t.follow}</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {display.length===0 && <div style={{ gridColumn:"1/-1", textAlign:"center", color:C.textMuted, padding:"40px 0", fontSize:13 }}>{homeTab==="following"?"Follow some authors first.":"No characters found."}</div>}
+        </div>
+      )}
       {setupChar && <ChatSetupModal char={setupChar} t={t} lang={lang} onStart={s=>{ openChat(setupChar,s); setSetupChar(null); }} onClose={()=>setSetupChar(null)} />}
+    </div>
+  );
+}
+
+// ─── PUBLIC USER CHARS (для People tab) ──────────────────────────────────────
+function PublicUserChars({ userId }) {
+  const [chars, setChars] = useState(null);
+  useEffect(() => {
+    supabase.from("characters").select("*").eq("user_id", userId).eq("visibility","public").limit(6)
+      .then(({ data }) => setChars(data || []));
+  }, [userId]);
+
+  if (chars === null) return <div style={{ fontSize:12, color:C.textMuted, padding:"8px 0" }}>Loading...</div>;
+  if (chars.length === 0) return <div style={{ fontSize:12, color:C.textDim, padding:"8px 0" }}>No public characters yet.</div>;
+
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+      {chars.map(char => (
+        <div key={char.id} style={{ background:char.avatar_color||"#2d4a3e", borderRadius:12, padding:"10px 8px", textAlign:"center", border:`1px solid ${C.border}` }}>
+          <div style={{ fontSize:24, marginBottom:4 }}>{char.avatar_emoji||"🌟"}</div>
+          <div style={{ fontSize:10, fontWeight:700, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{char.name}</div>
+          <div style={{ fontSize:9, color:C.textMuted, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{char.description}</div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1568,17 +1696,34 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !supaUser) return;
+    // Validate file
+    if (file.size > 5 * 1024 * 1024) { alert("Photo too large. Max 5MB."); return; }
+    if (!file.type.startsWith("image/")) { alert("Please select an image file."); return; }
     setUploadingPhoto(true);
     try {
-      const ext = file.name.split(".").pop();
+      const ext = file.name.split(".").pop().toLowerCase() || "jpg";
       const path = `${supaUser.id}/avatar.${ext}`;
-      const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
-      if (upErr) { alert("Upload failed: " + upErr.message); setUploadingPhoto(false); return; }
+      // Try upload
+      const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) {
+        // If bucket doesn't exist, show clear message
+        if (upErr.message?.includes("bucket") || upErr.statusCode === 404) {
+          alert("Storage not set up yet.\n\nPlease go to Supabase → Storage → create a bucket named 'avatars' with Public access.");
+        } else if (upErr.message?.includes("security") || upErr.statusCode === 403) {
+          alert("Permission denied. Please check Supabase Storage policies for the 'avatars' bucket.");
+        } else {
+          alert("Upload failed: " + upErr.message);
+        }
+        setUploadingPhoto(false);
+        return;
+      }
       const { data } = supabase.storage.from("avatars").getPublicUrl(path);
       const url = data.publicUrl + "?t=" + Date.now();
       setUserProfile(prev => ({ ...prev, avatarPhoto: url }));
-      if (supaUser) await supabase.from("profiles").upsert({ id: supaUser.id, avatar_photo: url });
-    } catch { alert("Something went wrong."); }
+      await supabase.from("profiles").upsert({ id: supaUser.id, avatar_photo: url });
+    } catch (err) {
+      alert("Something went wrong: " + (err.message || "unknown error"));
+    }
     setUploadingPhoto(false);
   };
 
