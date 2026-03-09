@@ -434,6 +434,8 @@ export default function App() {
   // ── Open / continue a chat ─────────────────────────────────────────────────
   const openChat = async (chars, settings = {}) => {
     const charsArr = Array.isArray(chars) ? chars : [chars];
+    const firstChar = charsArr[0];
+    const firstMsg = firstChar?.first_message || firstChar?.firstMsg || null;
 
     if (isReg && supaUser) {
       const { data: newSession, error } = await supabase
@@ -450,8 +452,29 @@ export default function App() {
         .single();
 
       if (!error && newSession) {
-        // Store customBg in memory only (not in DB — it's a blob URL)
-        const session = { ...newSession, messages: [], customBg: settings.customBg || null };
+        let messages = [];
+        // Auto-add first message from character
+        if (firstMsg) {
+          const firstAiMsg = {
+            id: `first-${Date.now()}`,
+            role: "ai",
+            charName: firstChar.name,
+            charAvatar: firstChar.avatar || firstChar.avatar_emoji,
+            text: firstMsg,
+            originalText: firstMsg,
+          };
+          messages = [firstAiMsg];
+          // Save to DB
+          await supabase.from("messages").insert({
+            session_id: newSession.id,
+            role: "ai",
+            text: firstMsg,
+            original_text: firstMsg,
+            char_name: firstChar.name,
+            char_avatar: firstChar.avatar || firstChar.avatar_emoji,
+          });
+        }
+        const session = { ...newSession, messages, customBg: settings.customBg || null };
         setSessions(prev => [newSession, ...prev]);
         setActiveSession(session);
         setPage("chat");
@@ -461,10 +484,21 @@ export default function App() {
 
     // Guest fallback
     const id = Date.now();
+    let guestMessages = [];
+    if (firstMsg) {
+      guestMessages = [{
+        id: `first-${Date.now()}`,
+        role: "ai",
+        charName: firstChar.name,
+        charAvatar: firstChar.avatar || firstChar.avatar_emoji,
+        text: firstMsg,
+        originalText: firstMsg,
+      }];
+    }
     const session = {
       id,
       chars: charsArr,
-      messages: [],
+      messages: guestMessages,
       group: charsArr.length > 1,
       wallpaper: settings.wallpaper || "none",
       customBg: settings.customBg || null,
