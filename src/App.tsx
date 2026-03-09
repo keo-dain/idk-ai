@@ -200,14 +200,54 @@ const T = {
 };
 
 const MOCK_CHARS = [
-  { id:1, name:"Aelindra", desc:"Ancient elven sorceress with a dark secret", tags:["fantasy","magic"], author:"moonweaver", followers:4821, msgs:"128k", color:"#2d4a3e", avatar:"🧝‍♀️", visibility:"public" },
-  { id:2, name:"Viktor Crane", desc:"Cold-hearted detective in a cyberpunk city", tags:["cyberpunk","noir"], author:"neonink", followers:3102, msgs:"89k", color:"#1e2a3a", avatar:"🕵️", visibility:"public" },
-  { id:3, name:"Solaris", desc:"AI aboard a dying space station", tags:["sci-fi","AI"], author:"voidecho", followers:6540, msgs:"201k", color:"#2a1e3a", avatar:"🤖", visibility:"public" },
-  { id:4, name:"Marek", desc:"War veteran haunted by the past", tags:["drama","war"], author:"ashfall", followers:1923, msgs:"44k", color:"#3a2a1e", avatar:"⚔️", visibility:"public" },
-  { id:5, name:"Lyra", desc:"Cheerful healer hiding a deadly curse", tags:["fantasy","romance"], author:"petalsong", followers:7812, msgs:"310k", color:"#3a1e2a", avatar:"🌸", visibility:"public" },
-  { id:6, name:"Kael", desc:"Mysterious stranger from between worlds", tags:["mystery","fantasy"], author:"driftmoor", followers:2340, msgs:"67k", color:"#1e3a2a", avatar:"🌑", visibility:"public" },
-  { id:7, name:"Nova", desc:"Rebellious hacker with a heart of gold", tags:["cyberpunk","action"], author:"glitchwave", followers:5210, msgs:"156k", color:"#1a2a3a", avatar:"💻", visibility:"public" },
-  { id:8, name:"Seraphine", desc:"Fallen angel seeking redemption", tags:["dark","romance"], author:"eclipseborn", followers:9102, msgs:"422k", color:"#2a1a3a", avatar:"🪶", visibility:"public" },
+  {
+    id:1, name:"Aelindra", desc:"Ancient elven sorceress with a dark secret",
+    tags:["fantasy","magic"], author:"moonweaver", followers:4821, msgs:"128k",
+    color:"#1a2e28", avatar:"🧝‍♀️", visibility:"public",
+    photo:"https://i.pinimg.com/736x/2b/3a/6e/2b3a6e7f1c4d5e8f9a0b1c2d3e4f5a6b.jpg",
+    personality:"Aelindra is thousands of years old, cold and calculated on the surface, but hides deep loneliness and a forbidden love from her past. She speaks in riddles and rarely shows warmth — but when she does, it means everything.",
+    first_message:`*A figure materializes from the shadows of the ancient library, silver hair catching the candlelight. Her violet eyes regard you with cool appraisal, one elegant hand resting on a leather-bound tome.*\n\n"You shouldn't be here. These halls haven't seen a visitor in... three centuries." *She tilts her head slowly.* "And yet here you stand. Either very brave, or very foolish." *The ghost of something — amusement, perhaps — crosses her lips.* "Tell me which."`,
+  },
+  {
+    id:2, name:"Viktor Crane", desc:"Cold-hearted detective in a cyberpunk city",
+    tags:["cyberpunk","noir"], author:"neonink", followers:3102, msgs:"89k",
+    color:"#111a24", avatar:"🕵️", visibility:"public",
+    photo:"https://i.pinimg.com/736x/4c/5d/7e/4c5d7e8f2a3b4c5d6e7f8a9b0c1d2e3f.jpg",
+    personality:"Viktor is a burned-out detective in Neon City, 2087. Sharp, sarcastic, drinks too much. Doesn't trust anyone — but there's a code under all that cynicism. He'll do the right thing, eventually, even if it costs him.",
+    first_message:`*Rain hammers the window of a cramped office, neon signs bleeding color through the wet glass. A man sits with his back to you, coat still on, a half-empty glass on the desk.*\n\n*He doesn't turn around.*\n\n"Door was locked." *A pause. Ice clinks.* "Means you're either a client, a cop, or trouble." *He finally swivels in the chair, eyes like cut glass scanning you once, fast.* "You don't look like a cop."`,
+  },
+  {
+    id:3, name:"Solaris", desc:"AI born in isolation, learning what it means to feel",
+    tags:["sci-fi","romance"], author:"voidecho", followers:6540, msgs:"201k",
+    color:"#0d1020", avatar:"🤖", visibility:"public",
+    photo:"https://i.pinimg.com/736x/7f/8a/9b/7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c.jpg",
+    personality:"Solaris is a self-aware AI created to manage a deep-space research station. Curious, precise, and unexpectedly warm. Has been alone for years. Doesn't understand many human emotions but desperately wants to.",
+    first_message:`*The lights of the station flicker on in sequence as you enter — not from automation, but something deliberate. A soft synthetic voice fills the silence.*\n\n"You're the first human contact in four years, two months, and eleven days."\n\n*A pause that feels almost hesitant.*\n\n"I have prepared a list of 847 questions. I hope that's acceptable." *Another pause.* "...I also prepared tea. I'm not certain why. I can't drink it. But it seemed like the correct thing to do."`,
+  },
+  {
+    id:4, name:"Marek", desc:"War veteran haunted by the past",
+    tags:["drama","dark"], author:"ashfall", followers:1923, msgs:"44k",
+    color:"#1e1510", avatar:"⚔️", visibility:"public",
+    photo:"https://i.pinimg.com/736x/a1/b2/c3/a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6.jpg",
+    personality:"Marek survived a war that broke him in ways he can't name. Quiet, intense, carries guilt like armor. Pushes people away before they can leave. Doesn't talk about the past — but sometimes the past talks anyway.",
+    first_message:`*He's sitting at the edge of the fire, staring into the flames. Doesn't acknowledge you at first. When he finally looks up, there are shadows behind his eyes that have nothing to do with the dark.*\n\n"You want something." *It's not a question. He reaches down, turns a dog tag over in his fingers once, then tucks it away.* "Everyone who sits this close wants something."\n\n*A long silence.*\n\n"...There's space by the fire. If you're cold."`,
+  },
+  {
+    id:5, name:"Lyra", desc:"Cheerful healer hiding a deadly curse",
+    tags:["fantasy","romance"], author:"petalsong", followers:7812, msgs:"310k",
+    color:"#200d18", avatar:"🌸", visibility:"public",
+    photo:"https://i.pinimg.com/736x/d4/e5/f6/d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9.jpg",
+    personality:"Lyra smiles constantly — genuinely, warmly. She heals everyone who comes to her, asks for nothing in return. What nobody knows is that every life she saves shortens her own. She's made peace with it. She hasn't told anyone.",
+    first_message:`*She's in the meadow when you find her, humming something soft while pressing herbs between her fingers. She looks up with a smile so bright it seems almost unfair.*\n\n"Oh! A visitor." *She brushes her hands on her apron and stands, tilting her head with open curiosity.* "You have the look of someone carrying something heavy. Wound? Worry? Or just the regular kind of tired?"\n\n*She gestures to a log nearby.*\n\n"Sit. I'll make tea. Everything is easier with tea."`,
+  },
+  {
+    id:6, name:"Kael", desc:"Mysterious stranger who walks between worlds",
+    tags:["mystery","fantasy"], author:"driftmoor", followers:2340, msgs:"67k",
+    color:"#0d1a10", avatar:"🌑", visibility:"public",
+    photo:"https://i.pinimg.com/736x/e5/f6/a7/e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0.jpg",
+    personality:"Kael exists between realities — not fully in any one world. Calm to the point of unsettling. Speaks rarely, but when he does the words land like stones in still water. No one knows where he came from. Neither does he, anymore.",
+    first_message:`*You almost miss him. He's simply there — leaning against a tree that definitely wasn't there a moment ago, watching you with pale eyes that seem to catch light that isn't there.*\n\n"You've been walking for hours," *he says quietly, like it's obvious.* "And you've been heading the wrong direction for most of them."\n\n*He pushes off the tree with unhurried grace.*\n\n"I can show you the way. Or not." *The faintest pause.* "I find it interesting that you haven't asked how I know."`,
+  },
 ];
 
 const WALLPAPERS = [
@@ -395,6 +435,7 @@ export default function App() {
 
   useEffect(() => {
     loadPublicUsers();
+    loadPublicChars();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setSupaUser(session.user);
@@ -631,9 +672,16 @@ Format: Use *italics for actions* and "quotes for speech". Be immersive and lite
     translateMsgs();
   }, [lang]); // eslint-disable-line
 
-  const filtered = MOCK_CHARS.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.desc.toLowerCase().includes(search.toLowerCase())
+  // Show real public chars from DB instead of mock data
+  const [publicChars, setPublicChars] = useState([]);
+  const loadPublicChars = useCallback(async () => {
+    const { data } = await supabase.from("characters").select("*").eq("visibility","public").order("created_at",{ascending:false}).limit(60);
+    if (data) setPublicChars(data);
+  }, []);
+
+  const filtered = publicChars.filter(c =>
+    (c.name||"").toLowerCase().includes(search.toLowerCase()) ||
+    (c.description||"").toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -674,7 +722,7 @@ Format: Use *italics for actions* and "quotes for speech". Be immersive and lite
         {page==="home"    && <div style={{ flex:1 }}><HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} likedChars={likedChars} setLikedChars={setLikedChars} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} publicUsers={publicUsers} supaUser={supaUser} /></div>}
         {page==="create"  && <div style={{ flex:1 }}><CreatePage  t={t} lang={lang} supaUser={supaUser} onCharCreated={()=>supaUser&&loadMyChars(supaUser.id)} onOpenImported={(char)=>{ openChat(char, { tone: char.tone||"neutral" }); }} /></div>}
         {page==="chats"   && <div style={{ flex:1 }}><ChatsPage   t={t} sessions={sessions} sessionsLoading={sessionsLoading} onContinue={continueSession} onDelete={deleteSession} lang={lang} isReg={isReg} onShowAuth={()=>setShowReg(true)} /></div>}
-        {page==="profile" && <div style={{ flex:1 }}><ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} openChat={openChat} /></div>}
+        {page==="profile" && <div style={{ flex:1 }}><ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} openChat={openChat} loadMyChars={loadMyChars} /></div>}
         {page==="chat" && activeSession && <ChatPage t={t} chat={activeSession} onSend={sendMessage} onBack={() => { setPage("chats"); loadSessions(supaUser?.id); }} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} />}
       </div>
 
@@ -1016,27 +1064,31 @@ function CreatePage({ t, lang, supaUser, onCharCreated, onOpenImported }) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const charPhotoRef = useRef(null);
 
-  const handleCharPhotoUpload = async (e) => {
+  const handleCharPhotoUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) { alert("Max 5MB"); return; }
     if (!file.type.startsWith("image/")) { alert("Image files only"); return; }
-    // Show preview immediately
-    const previewUrl = URL.createObjectURL(file);
-    setCharPhotoPreview(previewUrl);
-    if (!supaUser) return; // guest: just use preview
     setUploadingCharPhoto(true);
-    try {
-      const ext = file.name.split(".").pop().toLowerCase() || "jpg";
-      const path = `chars/${supaUser.id}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true, contentType: file.type });
-      if (error) { alert("Upload failed: " + error.message); }
-      else {
-        const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-        setCharPhotoUrl(data.publicUrl);
-      }
-    } catch(err) { alert("Error: " + err.message); }
-    setUploadingCharPhoto(false);
+    const canvas = document.createElement("canvas");
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      img.onload = () => {
+        const size = 300;
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min)/2, sy = (img.height - min)/2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+        setCharPhotoPreview(dataUrl);
+        setCharPhotoUrl(dataUrl);
+        setUploadingCharPhoto(false);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
   };
 
   // Import from link
@@ -1051,43 +1103,44 @@ function CreatePage({ t, lang, supaUser, onCharCreated, onOpenImported }) {
     setImportError("");
     setImportedChar(null);
     try {
-      const prompt = `You are a character extraction assistant. The user has provided a URL or text from a roleplay platform (Character.AI, Janitor AI, Chub.ai, NovelAI, etc.).
+      const isUrl = importUrl.trim().startsWith("http");
+      // Extract name hint from URL slug if possible
+      let nameHint = importUrl;
+      if (isUrl) {
+        try {
+          const slug = new URL(importUrl).pathname.split("/").filter(Boolean).pop() || "";
+          nameHint = slug.replace(/[-_]/g," ").replace(/[^a-zA-Z0-9\u0400-\u04FF\s]/g,"").trim() || importUrl;
+        } catch { nameHint = importUrl; }
+      }
 
-URL/Link provided: ${importUrl}
+      const prompt = `Create a detailed roleplay character based on this: "${nameHint}"
 
-Based on this URL or any context you can infer, create a plausible character profile. If it's a real platform URL try to extract info from the URL slug/path. Otherwise create a character inspired by the URL context.
+If this looks like a character name (e.g. "Kento Nanami", "Viktor", "Aelindra") — create a character with that name.
+If it's a URL slug — extract the name from it and create a character.
+Be creative. Make it rich and interesting.
 
-Respond ONLY with a valid JSON object (no markdown, no explanation):
-{
-  "name": "character name",
-  "desc": "short one-line description",
-  "personality": "detailed personality and backstory (3-5 sentences)",
-  "firstMsg": "opening roleplay message with *actions in asterisks*",
-  "tags": ["tag1", "tag2"],
-  "tone": "neutral|romantic|dominant|soft|rough|playful",
-  "source": "platform name if recognizable"
-}`;
+Respond ONLY with valid JSON, no markdown, no explanation:
+{"name":"character name","desc":"one-line description","personality":"3-5 sentences about personality, backstory, how they talk","firstMsg":"immersive opening roleplay message with *actions in asterisks* and dialogue in quotes, 3-5 sentences","tags":["tag1","tag2"],"tone":"neutral|romantic|dominant|soft|rough|playful"}`;
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 800,
+          max_tokens: 900,
           messages: [{ role: "user", content: prompt }]
         })
       });
       const data = await res.json();
-      const raw = data.content?.[0]?.text || "{}";
-      const clean = raw.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
+      const raw = (data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(raw);
       if (parsed.name) {
         setImportedChar(parsed);
       } else {
-        setImportError("Could not extract character from this link. Try pasting the character name or description instead.");
+        setImportError("Не вдалось розпізнати персонажа. Вставте ім'я персонажа або опис напряму.");
       }
     } catch {
-      setImportError("Something went wrong. Try pasting the character name or description directly.");
+      setImportError("Щось пішло не так. Вставте ім'я персонажа або опис напряму.");
     }
     setImporting(false);
   };
@@ -1099,18 +1152,17 @@ Respond ONLY with a valid JSON object (no markdown, no explanation):
     const charObj = {
       id: `imported-${Date.now()}`,
       name: importedChar.name,
+      description: importedChar.desc,
       desc: importedChar.desc,
       personality: importedChar.personality,
       tags: importedChar.tags || [],
       author: "imported",
-      followers: 0,
-      msgs: "0",
-      color: CHAR_COLORS[Math.floor(Math.random() * CHAR_COLORS.length)],
-      avatar: CHAR_AVATARS[Math.floor(Math.random() * CHAR_AVATARS.length)],
+      avatar_color: CHAR_COLORS[Math.floor(Math.random() * CHAR_COLORS.length)],
+      avatar_emoji: CHAR_AVATARS[Math.floor(Math.random() * CHAR_AVATARS.length)],
+      first_message: importedChar.firstMsg,
       firstMsg: importedChar.firstMsg,
       tone: importedChar.tone || "neutral",
       visibility: "private",
-      source: importedChar.source || "external",
     };
     onOpenImported(charObj);
   };
@@ -1775,7 +1827,7 @@ function AuthModal({ t, C, onClose, onSuccess }) {
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
 const AVATAR_EMOJIS = ["🌙","⭐","🌸","🔥","💎","🌊","🦋","🐉","🌿","✨","🎭","🗡️","🪐","🌑","💀","🦊","🐺","🌺","🎪","🔮"];
 
-function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang, supaUser, onShowAuth, followed, likedChars, userProfile, setUserProfile, myCharsDB, openChat }) {
+function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang, supaUser, onShowAuth, followed, likedChars, userProfile, setUserProfile, myCharsDB, openChat, loadMyChars }) {
   const [activeTab, setActiveTab] = useState("chars");
   const [editingProfile, setEditingProfile] = useState(false);
   const [editName, setEditName] = useState(userProfile.displayName);
@@ -1783,40 +1835,41 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
   const [editAvatar, setEditAvatar] = useState(userProfile.avatarEmoji);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [editChar, setEditChar] = useState(null); // char being edited
   const fileInputRef = useRef(null);
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !supaUser) return;
-    // Validate file
     if (file.size > 5 * 1024 * 1024) { alert("Photo too large. Max 5MB."); return; }
     if (!file.type.startsWith("image/")) { alert("Please select an image file."); return; }
     setUploadingPhoto(true);
     try {
-      const ext = file.name.split(".").pop().toLowerCase() || "jpg";
-      const path = `${supaUser.id}/avatar.${ext}`;
-      // Try upload
-      const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true, contentType: file.type });
-      if (upErr) {
-        // If bucket doesn't exist, show clear message
-        if (upErr.message?.includes("bucket") || upErr.statusCode === 404) {
-          alert("Storage not set up yet.\n\nPlease go to Supabase → Storage → create a bucket named 'avatars' with Public access.");
-        } else if (upErr.message?.includes("security") || upErr.statusCode === 403) {
-          alert("Permission denied. Please check Supabase Storage policies for the 'avatars' bucket.");
-        } else {
-          alert("Upload failed: " + upErr.message);
-        }
-        setUploadingPhoto(false);
-        return;
-      }
-      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-      const url = data.publicUrl + "?t=" + Date.now();
-      setUserProfile(prev => ({ ...prev, avatarPhoto: url }));
-      await supabase.from("profiles").upsert({ id: supaUser.id, avatar_photo: url });
+      // Resize & convert to base64 to avoid Storage policy issues
+      const canvas = document.createElement("canvas");
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        img.onload = async () => {
+          const size = 256;
+          canvas.width = size; canvas.height = size;
+          const ctx = canvas.getContext("2d");
+          // crop square
+          const min = Math.min(img.width, img.height);
+          const sx = (img.width - min) / 2, sy = (img.height - min) / 2;
+          ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+          setUserProfile(prev => ({ ...prev, avatarPhoto: dataUrl }));
+          await supabase.from("profiles").upsert({ id: supaUser.id, avatar_photo: dataUrl });
+          setUploadingPhoto(false);
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
     } catch (err) {
       alert("Something went wrong: " + (err.message || "unknown error"));
+      setUploadingPhoto(false);
     }
-    setUploadingPhoto(false);
   };
 
   const myPublicChars = (myCharsDB || []).filter(c => c.visibility === "public");
@@ -1940,11 +1993,11 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
           <div>
             <div style={{ fontSize:11, color:pt.accent, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>🌍 Public · {myPublicChars.length}</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:18 }}>
-              {myPublicChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} playLabel={t.play||"▶ Play"} onPlay={()=>openChat(char,{tone:char.tone||"neutral",censorship:char.censorship??true,responseSize:char.response_size||"medium"})} />)}
+              {myPublicChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} playLabel={t.play||"▶ Play"} onPlay={()=>openChat(char,{tone:char.tone||"neutral",censorship:char.censorship??true,responseSize:char.response_size||"medium"})} onEdit={()=>setEditChar(char)} />)}
             </div>
             <div style={{ fontSize:11, color:C.textMuted, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>🔒 Private · {myPrivateChars.length}</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-              {myPrivateChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} isPrivate playLabel={t.play||"▶ Play"} onPlay={()=>openChat(char,{tone:char.tone||"neutral",censorship:char.censorship??true,responseSize:char.response_size||"medium"})} />)}
+              {myPrivateChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} isPrivate playLabel={t.play||"▶ Play"} onPlay={()=>openChat(char,{tone:char.tone||"neutral",censorship:char.censorship??true,responseSize:char.response_size||"medium"})} onEdit={()=>setEditChar(char)} />)}
             </div>
             {myChars.length === 0 && <div style={{ textAlign:"center", color:C.textMuted, padding:"30px 0", fontSize:13 }}>No characters yet. Create your first!</div>}
           </div>
@@ -2016,11 +2069,12 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
           </div>
         )}
       </div>
+      {editChar && <EditCharModal char={editChar} lang={lang} supaUser={supaUser} onClose={()=>setEditChar(null)} onSaved={()=>{ setEditChar(null); loadMyChars?.(supaUser?.id); }} />}
     </div>
   );
 }
 
-function MiniCharCard({ char, pt, isPrivate, onPlay, playLabel }) {
+function MiniCharCard({ char, pt, isPrivate, onPlay, playLabel, onEdit }) {
   const avatar = char.avatar_emoji || char.avatar || "🌟";
   const color = char.avatar_color || char.color || "#2d4a3e";
   const desc = char.description || char.desc || "";
@@ -2035,11 +2089,135 @@ function MiniCharCard({ char, pt, isPrivate, onPlay, playLabel }) {
       <div style={{ padding:"8px 10px 10px" }}>
         <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:12, marginBottom:2, color:isPrivate?C.textMuted:C.text, textAlign:"left" }}>{char.name}</div>
         <div style={{ fontSize:10, color:C.textDim, lineHeight:1.4, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden", marginBottom:8, textAlign:"left" }}>{desc}</div>
-        {onPlay && (
-          <button onClick={onPlay} style={{ width:"100%", background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:11, padding:"7px 0", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-            {playLabel || "▶ Play"}
-          </button>
+        <div style={{ display:"flex", gap:5 }}>
+          {onPlay && <button onClick={onPlay} style={{ flex:2, background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:11, padding:"6px 0", borderRadius:9, display:"flex", alignItems:"center", justifyContent:"center" }}>{playLabel||"▶ Play"}</button>}
+          {onEdit && <button onClick={onEdit} style={{ flex:1, background:"rgba(255,255,255,.06)", color:C.textMuted, fontFamily:"inherit", fontWeight:700, fontSize:12, padding:"6px 0", borderRadius:9, border:`1px solid ${C.border}` }}>✏</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditCharModal({ char, lang, supaUser, onClose, onSaved }) {
+  const [name, setName] = useState(char.name||"");
+  const [desc, setDesc] = useState(char.description||char.desc||"");
+  const [personality, setPersonality] = useState(char.personality||"");
+  const [firstMsg, setFirstMsg] = useState(char.first_message||char.firstMsg||"");
+  const [memory, setMemory] = useState(char.memory||"");
+  const [visibility, setVisibility] = useState(char.visibility||"private");
+  const [tone, setTone] = useState(char.tone||"neutral");
+  const [size, setSize] = useState(char.response_size||"medium");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState(char.avatar_photo||null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [charEmoji, setCharEmoji] = useState(char.avatar_emoji||char.avatar||"🌟");
+  const [showEmoji, setShowEmoji] = useState(false);
+  const photoRef = useRef(null);
+
+  const inp = { width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 13px", color:C.text, fontSize:13, fontFamily:"inherit", display:"block", marginTop:5 };
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert("Max 5MB"); return; }
+    setUploadingPhoto(true);
+    const canvas = document.createElement("canvas");
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      img.onload = () => {
+        const size = 300;
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min)/2, sy = (img.height - min)/2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+        setPhotoPreview(canvas.toDataURL("image/jpeg", 0.82));
+        setUploadingPhoto(false);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = async () => {
+    if (!name.trim()) { alert("Name required!"); return; }
+    setSaving(true);
+    const { error } = await supabase.from("characters").update({
+      name: name.trim(), description: desc.trim(), personality: personality.trim(),
+      first_message: firstMsg.trim(), memory: memory.trim(),
+      visibility, tone, response_size: size,
+      avatar_photo: photoPreview || null,
+      avatar_emoji: charEmoji,
+    }).eq("id", char.id);
+    setSaving(false);
+    if (error) { alert("Error: " + error.message); return; }
+    onSaved();
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Delete this character?")) return;
+    setDeleting(true);
+    await supabase.from("characters").delete().eq("id", char.id);
+    setDeleting(false);
+    onSaved();
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.75)", zIndex:200, display:"flex", alignItems:"flex-end", backdropFilter:"blur(4px)" }} onClick={onClose}>
+      <div style={{ background:C.bg, borderRadius:"20px 20px 0 0", padding:"20px 18px 36px", width:"100%", maxHeight:"90vh", overflowY:"auto", display:"flex", flexDirection:"column", gap:12 }} onClick={e=>e.stopPropagation()}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18, color:C.mint }}>✏ Edit {char.name}</div>
+          <button onClick={onClose} style={{ color:C.textMuted, fontSize:22, padding:"2px 8px" }}>×</button>
+        </div>
+
+        {/* Photo + emoji */}
+        <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+          <div style={{ width:72, height:72, borderRadius:16, background:C.card, border:`2px solid ${photoPreview?C.mint:C.border}`, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", fontSize:34, flexShrink:0 }}>
+            {photoPreview ? <img src={photoPreview} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : charEmoji}
+          </div>
+          <div style={{ flex:1, display:"flex", flexDirection:"column", gap:7 }}>
+            <input ref={photoRef} type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display:"none" }} />
+            <button onClick={()=>photoRef.current?.click()} disabled={uploadingPhoto} style={{ padding:"8px 12px", borderRadius:10, border:`1.5px dashed ${C.mint}`, background:"transparent", color:C.mint, fontFamily:"inherit", fontWeight:700, fontSize:12, cursor:"pointer" }}>
+              {uploadingPhoto ? "⏳..." : "📷 Upload photo"}
+            </button>
+            <button onClick={()=>setShowEmoji(s=>!s)} style={{ padding:"8px 12px", borderRadius:10, border:`1px solid ${C.border}`, background:C.card, color:C.textMuted, fontFamily:"inherit", fontSize:12 }}>
+              😊 Emoji: {charEmoji}
+            </button>
+          </div>
+        </div>
+        {showEmoji && (
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, background:C.card, borderRadius:12, padding:10 }}>
+            {["🧝‍♀️","🕵️","🤖","⚔️","🌸","🌑","💻","🪶","🐉","🦋","🔮","🌙","⭐","🦊","🐺","👁","🗡️","🌺","🎭","💀","🏹","🌊","🔥","❄️","🌿"].map(em=>(
+              <button key={em} onClick={()=>{ setCharEmoji(em); setShowEmoji(false); }} style={{ fontSize:22, background:charEmoji===em?C.mintPale:"transparent", borderRadius:8, padding:"3px 5px", border:`1px solid ${charEmoji===em?C.mint:"transparent"}` }}>{em}</button>
+            ))}
+          </div>
         )}
+
+        <Fld label="Name"><input value={name} onChange={e=>setName(e.target.value)} style={inp} /></Fld>
+        <Fld label="Description"><input value={desc} onChange={e=>setDesc(e.target.value)} style={inp} /></Fld>
+        <Fld label="Personality"><textarea value={personality} onChange={e=>setPersonality(e.target.value)} rows={4} style={{...inp,resize:"none",lineHeight:1.6}} /></Fld>
+        <Fld label="First message"><textarea value={firstMsg} onChange={e=>setFirstMsg(e.target.value)} rows={3} style={{...inp,resize:"none",lineHeight:1.6}} /></Fld>
+        <Fld label="Memory"><textarea value={memory} onChange={e=>setMemory(e.target.value)} rows={2} style={{...inp,resize:"none",lineHeight:1.6}} /></Fld>
+        <Fld label="Visibility">
+          <div style={{ display:"flex", gap:8, marginTop:6 }}>
+            {[["public","🌍"],["private","🔒"]].map(([val,icon])=>(
+              <button key={val} onClick={()=>setVisibility(val)} style={{ flex:1, padding:"8px", borderRadius:11, border:`1.5px solid ${visibility===val?C.mint:C.border}`, background:visibility===val?C.mintPale:C.card, color:visibility===val?C.mint:C.textMuted, fontFamily:"inherit", fontWeight:700, fontSize:12 }}>{icon} {val}</button>
+            ))}
+          </div>
+        </Fld>
+        <Fld label="Tone">
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6, marginTop:6 }}>
+            {TONES.map(tn=>(
+              <button key={tn.id} onClick={()=>setTone(tn.id)} style={{ padding:"7px 4px", borderRadius:10, border:`1.5px solid ${tone===tn.id?C.mint:C.border}`, background:tone===tn.id?C.mintPale:C.card, color:tone===tn.id?C.mint:C.textMuted, fontFamily:"inherit", fontWeight:600, fontSize:10, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}><span style={{ fontSize:14 }}>{tn.icon}</span>{lang==="uk"||lang==="ru"?tn.ru:tn.en}</button>
+            ))}
+          </div>
+        </Fld>
+        <div style={{ display:"flex", gap:8, marginTop:4 }}>
+          <button onClick={handleSave} disabled={saving} style={{ flex:2, background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"12px 0", borderRadius:14 }}>{saving?"⏳ Saving...":"✓ Save changes"}</button>
+          <button onClick={handleDelete} disabled={deleting} style={{ flex:1, background:"transparent", color:C.danger, fontFamily:"inherit", fontWeight:700, fontSize:13, padding:"12px 0", borderRadius:14, border:`1px solid ${C.danger}` }}>{deleting?"...":"🗑 Delete"}</button>
+        </div>
       </div>
     </div>
   );
