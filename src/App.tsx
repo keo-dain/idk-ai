@@ -34,7 +34,7 @@ const T = {
     wallpaper:"Chat wallpaper", profileStyle:"Profile theme", saveStyle:"Save",
     chatSettings:"Chat settings", startChat:"Begin Story",
     continueChat:"Continue", lastUsed:"Last used", newChat:"New Chat",
-    deleteChat:"Delete", msgs:"messages",
+    deleteChat:"Delete", msgs:"messages", play:"▶ Play", characters:"Characters", liked:"Liked",
   },
   ru: {
     home:"Главная", create:"Создать", chats:"Чаты", profile:"Профиль",
@@ -57,7 +57,7 @@ const T = {
     wallpaper:"Обои чата", profileStyle:"Тема профиля", saveStyle:"Сохранить",
     chatSettings:"Настройки чата", startChat:"Начать историю",
     continueChat:"Продовжити", lastUsed:"Останній раз", newChat:"Новий чат",
-    deleteChat:"Видалити", msgs:"повід",
+    deleteChat:"Видалити", msgs:"повід", play:"▶ Грати", characters:"Персонажи", liked:"Вподобані",
   },
   uk: {
     home:"Головна", create:"Створити", chats:"Чати", profile:"Профіль",
@@ -80,7 +80,7 @@ const T = {
     wallpaper:"Шпалери чату", profileStyle:"Тема профілю", saveStyle:"Зберегти",
     chatSettings:"Налаштування чату", startChat:"Почати історію",
     continueChat:"Продовжити", lastUsed:"Востаннє", newChat:"Новий чат",
-    deleteChat:"Видалити", msgs:"повід",
+    deleteChat:"Видалити", msgs:"повід", play:"▶ Ролити", characters:"Персонажі", liked:"Вподобані",
   },
   de: {
     home:"Start", create:"Erstellen", chats:"Chats", profile:"Profil",
@@ -103,7 +103,7 @@ const T = {
     wallpaper:"Chat-Hintergrund", profileStyle:"Profilthema", saveStyle:"Speichern",
     chatSettings:"Chat-Einstellungen", startChat:"Geschichte beginnen",
     continueChat:"Weiter", lastUsed:"Zuletzt", newChat:"Neuer Chat",
-    deleteChat:"Löschen", msgs:"Nachr",
+    deleteChat:"Löschen", msgs:"Nachr", play:"▶ Spielen", characters:"Charaktere", liked:"Gemocht",
   },
   it: {
     home:"Home", create:"Crea", chats:"Chat", profile:"Profilo",
@@ -126,7 +126,7 @@ const T = {
     wallpaper:"Sfondo chat", profileStyle:"Tema profilo", saveStyle:"Salva",
     chatSettings:"Impostazioni chat", startChat:"Inizia la storia",
     continueChat:"Continua", lastUsed:"Ultimo uso", newChat:"Nuova chat",
-    deleteChat:"Elimina", msgs:"msg",
+    deleteChat:"Elimina", msgs:"msg", play:"▶ Gioca", characters:"Personaggi", liked:"Piaciuti",
   },
   fr: {
     home:"Accueil", create:"Créer", chats:"Chats", profile:"Profil",
@@ -149,7 +149,7 @@ const T = {
     wallpaper:"Fond de chat", profileStyle:"Thème du profil", saveStyle:"Sauvegarder",
     chatSettings:"Paramètres du chat", startChat:"Commencer l'histoire",
     continueChat:"Continuer", lastUsed:"Dernière fois", newChat:"Nouveau chat",
-    deleteChat:"Supprimer", msgs:"msg",
+    deleteChat:"Supprimer", msgs:"msg", play:"▶ Jouer", characters:"Personnages", liked:"Aimés",
   },
   es: {
     home:"Inicio", create:"Crear", chats:"Chats", profile:"Perfil",
@@ -172,7 +172,7 @@ const T = {
     wallpaper:"Fondo de chat", profileStyle:"Tema de perfil", saveStyle:"Guardar",
     chatSettings:"Ajustes del chat", startChat:"Comenzar historia",
     continueChat:"Continuar", lastUsed:"Último uso", newChat:"Nuevo chat",
-    deleteChat:"Eliminar", msgs:"msg",
+    deleteChat:"Eliminar", msgs:"msg", play:"▶ Jugar", characters:"Personajes", liked:"Gustados",
   },
   pl: {
     home:"Strona główna", create:"Utwórz", chats:"Czaty", profile:"Profil",
@@ -195,7 +195,7 @@ const T = {
     wallpaper:"Tapeta czatu", profileStyle:"Motyw profilu", saveStyle:"Zapisz",
     chatSettings:"Ustawienia czatu", startChat:"Rozpocznij historię",
     continueChat:"Kontynuuj", lastUsed:"Ostatnio", newChat:"Nowy czat",
-    deleteChat:"Usuń", msgs:"wiad",
+    deleteChat:"Usuń", msgs:"wiad", play:"▶ Grać", characters:"Postacie", liked:"Polubione",
   }
 };
 
@@ -689,11 +689,11 @@ Format: Use *italics for actions* and "quotes for speech". Be immersive and lite
       )}
 
       {page !== "chat" && (
-        <div style={{ display:"flex", background:C.surface, borderTop:`1px solid ${C.border}`, padding:"8px 0 14px", flexShrink:0 }}>
+        <div style={{ display:"flex", background:C.surface, borderTop:`1px solid ${C.border}`, padding:"6px 0 12px", flexShrink:0 }}>
           {[{id:"home",icon:"⊞",label:t.home},{id:"create",icon:"✦",label:t.create},{id:"chats",icon:"◈",label:t.chats},{id:"profile",icon:"◉",label:t.profile}].map(nav => (
-            <button key={nav.id} className="nb" onClick={() => setPage(nav.id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"6px 0" }}>
-              <span style={{ fontSize:20, opacity:page===nav.id?1:0.28, filter:page===nav.id?`drop-shadow(0 0 7px ${C.mint})`:"none", transition:"all .2s" }}>{nav.icon}</span>
-              <span style={{ fontSize:10, fontWeight:700, color:page===nav.id?C.mint:C.textDim, letterSpacing:.5, textTransform:"uppercase" }}>{nav.label}</span>
+            <button key={nav.id} className="nb" onClick={() => setPage(nav.id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 0" }}>
+              <span style={{ fontSize:16, opacity:page===nav.id?1:0.28, filter:page===nav.id?`drop-shadow(0 0 6px ${C.mint})`:"none", transition:"all .2s" }}>{nav.icon}</span>
+              <span style={{ fontSize:9, fontWeight:700, color:page===nav.id?C.mint:C.textDim, letterSpacing:.4, textTransform:"uppercase" }}>{nav.label}</span>
             </button>
           ))}
         </div>
@@ -990,7 +990,7 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
 
 // ─── CREATE ───────────────────────────────────────────────────────────────────
 function CreatePage({ t, lang, supaUser, onCharCreated, onOpenImported }) {
-  const [activeTab, setActiveTab] = useState("create"); // "create" | "import"
+  const [activeTab, setActiveTab] = useState("create");
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [personality, setPersonality] = useState("");
@@ -1009,6 +1009,35 @@ function CreatePage({ t, lang, supaUser, onCharCreated, onOpenImported }) {
   const [showAuto, setShowAuto] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState(false);
+  const [charEmoji, setCharEmoji] = useState("");
+  const [charPhotoUrl, setCharPhotoUrl] = useState("");
+  const [charPhotoPreview, setCharPhotoPreview] = useState(null);
+  const [uploadingCharPhoto, setUploadingCharPhoto] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const charPhotoRef = useRef(null);
+
+  const handleCharPhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert("Max 5MB"); return; }
+    if (!file.type.startsWith("image/")) { alert("Image files only"); return; }
+    // Show preview immediately
+    const previewUrl = URL.createObjectURL(file);
+    setCharPhotoPreview(previewUrl);
+    if (!supaUser) return; // guest: just use preview
+    setUploadingCharPhoto(true);
+    try {
+      const ext = file.name.split(".").pop().toLowerCase() || "jpg";
+      const path = `chars/${supaUser.id}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true, contentType: file.type });
+      if (error) { alert("Upload failed: " + error.message); }
+      else {
+        const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+        setCharPhotoUrl(data.publicUrl);
+      }
+    } catch(err) { alert("Error: " + err.message); }
+    setUploadingCharPhoto(false);
+  };
 
   // Import from link
   const [importUrl, setImportUrl] = useState("");
@@ -1094,7 +1123,7 @@ Respond ONLY with a valid JSON object (no markdown, no explanation):
     if (!supaUser) { alert("Please sign in to publish characters!"); return; }
     setPublishing(true);
     const randomColor = CHAR_COLORS[Math.floor(Math.random() * CHAR_COLORS.length)];
-    const randomAvatar = CHAR_AVATARS[Math.floor(Math.random() * CHAR_AVATARS.length)];
+    const randomAvatar = charEmoji || CHAR_AVATARS[Math.floor(Math.random() * CHAR_AVATARS.length)];
     const { error } = await supabase.from("characters").insert({
       user_id: supaUser.id,
       name: name.trim(),
@@ -1106,6 +1135,7 @@ Respond ONLY with a valid JSON object (no markdown, no explanation):
       visibility,
       avatar_emoji: randomAvatar,
       avatar_color: randomColor,
+      avatar_photo: charPhotoUrl || null,
       response_size: size,
       tone,
       censorship: censor,
@@ -1114,6 +1144,7 @@ Respond ONLY with a valid JSON object (no markdown, no explanation):
     else {
       setPublished(true);
       setName(""); setDesc(""); setPersonality(""); setFirstMsg(""); setMemory(""); setTags("");
+      setCharEmoji(""); setCharPhotoUrl(""); setCharPhotoPreview(null);
       onCharCreated?.();
       setTimeout(() => setPublished(false), 3000);
     }
@@ -1229,8 +1260,30 @@ Respond ONLY with a valid JSON object (no markdown, no explanation):
       {/* ── CREATE TAB ── */}
       {activeTab === "create" && (
       <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
-        <div style={{ width:"100%", background:C.card, border:`2px dashed ${C.border}`, borderRadius:16, height:86, display:"flex", alignItems:"center", justifyContent:"flex-start", paddingLeft:18, cursor:"pointer", fontSize:13, color:C.textMuted }}>
-          <span style={{ fontSize:24, marginRight:8 }}>🖼</span>{t.charAvatar}
+        {/* Avatar picker */}
+        <div>
+          <div style={{ fontSize:11, color:C.mint, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:8, textAlign:"left" }}>{t.charAvatar}</div>
+          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+            <div style={{ width:64, height:64, borderRadius:16, background:C.card, border:`2px dashed ${charPhotoPreview||charEmoji ? C.mint : C.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32, overflow:"hidden", flexShrink:0 }}>
+              {charPhotoPreview ? <img src={charPhotoPreview} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : (charEmoji || "🌟")}
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:7, flex:1 }}>
+              <input ref={charPhotoRef} type="file" accept="image/*" onChange={handleCharPhotoUpload} style={{ display:"none" }} />
+              <button onClick={()=>charPhotoRef.current?.click()} disabled={uploadingCharPhoto} style={{ width:"100%", padding:"8px 12px", borderRadius:10, border:`1.5px dashed ${C.mint}`, background:"transparent", color:C.mint, fontFamily:"inherit", fontWeight:700, fontSize:12, cursor:"pointer" }}>
+                {uploadingCharPhoto ? "⏳ Uploading..." : "📷 Upload photo"}
+              </button>
+              <button onClick={()=>setShowEmojiPicker(s=>!s)} style={{ width:"100%", padding:"8px 12px", borderRadius:10, border:`1px solid ${C.border}`, background:C.card, color:C.textMuted, fontFamily:"inherit", fontSize:12, fontWeight:600 }}>
+                😊 Choose emoji
+              </button>
+            </div>
+          </div>
+          {showEmojiPicker && (
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:10, background:C.card, borderRadius:14, padding:12, border:`1px solid ${C.border}` }}>
+              {["🧝‍♀️","🕵️","🤖","⚔️","🌸","🌑","💻","🪶","🐉","🦋","🔮","🌙","⭐","🦊","🐺","👁","🗡️","🌺","🎭","💀","🏹","🌊","🔥","❄️","🌿"].map(em => (
+                <button key={em} onClick={()=>{ setCharEmoji(em); setShowEmojiPicker(false); }} style={{ fontSize:22, background:charEmoji===em?C.mintPale:"transparent", borderRadius:8, padding:"4px 6px", border:`1px solid ${charEmoji===em?C.mint:"transparent"}` }}>{em}</button>
+              ))}
+            </div>
+          )}
         </div>
         <Fld label={t.charName}><input value={name} onChange={e=>setName(e.target.value)} style={inp} /></Fld>
         <Fld label={t.charDesc}><input value={desc} onChange={e=>setDesc(e.target.value)} style={inp} /></Fld>
@@ -1478,7 +1531,7 @@ function RoleText({ text, fontSize, lineHeight, isUser }) {
   if (lastIndex < text.length) { const rest = text.slice(lastIndex).trim(); if (rest) segments.push({ type: "speech", text: rest }); }
   const filtered = segments.filter(s => s.text.length > 0);
   return (
-    <div style={{ fontSize, lineHeight, display:"flex", flexDirection:"column", gap: "6px" }}>
+    <div style={{ fontSize, lineHeight, display:"flex", flexDirection:"column", gap: "6px", textAlign:"left" }}>
       {filtered.map((seg, i) => {
         const isAction = seg.type === "action";
         const showDash = i > 0 && !isAction && filtered[i-1]?.type === "action";
@@ -1802,88 +1855,102 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
 
   return (
     <div style={{ background:pt.grad }}>
-      <div style={{ padding:"18px 18px 0", position:"relative" }}>
-        <div style={{ position:"absolute", top:0, left:0, right:0, height:100, background:`linear-gradient(180deg, ${pt.accent}22 0%, transparent 100%)`, pointerEvents:"none" }} />
-        <div style={{ position:"relative", display:"flex", alignItems:"flex-end", gap:14, marginBottom:14 }}>
-          <div style={{ position:"relative" }}>
-            <div style={{ width:72, height:72, borderRadius:"50%", background:`rgba(255,255,255,.05)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, border:`3px solid ${pt.accent}`, boxShadow:`0 0 20px ${pt.accent}44`, overflow:"hidden" }}>
-              {userProfile.avatarPhoto ? <img src={userProfile.avatarPhoto} alt="avatar" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : userProfile.avatarEmoji}
-            </div>
-            {editingProfile && (
-              <button onClick={()=>setShowAvatarPicker(s=>!s)} style={{ position:"absolute", bottom:0, right:0, background:pt.accent, borderRadius:"50%", width:22, height:22, fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", color:C.bg }}>✏</button>
-            )}
+      {/* ── Minimal header like reference ── */}
+      <div style={{ padding:"32px 20px 20px", display:"flex", flexDirection:"column", alignItems:"center", position:"relative" }}>
+        <div style={{ position:"absolute", top:0, left:0, right:0, height:120, background:`linear-gradient(180deg, ${pt.accent}18 0%, transparent 100%)`, pointerEvents:"none" }} />
+        {/* Avatar */}
+        <div style={{ position:"relative", marginBottom:14 }}>
+          <div style={{ width:88, height:88, borderRadius:"50%", background:`rgba(255,255,255,.05)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:42, border:`2.5px solid ${pt.accent}55`, overflow:"hidden" }}>
+            {userProfile.avatarPhoto ? <img src={userProfile.avatarPhoto} alt="avatar" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : (userProfile.avatarEmoji || "🌙")}
           </div>
-          <div style={{ flex:1, paddingBottom:4 }}>
-            {editingProfile ? (
-              <input value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Display name" style={{ background:"transparent", border:`1px solid ${pt.accent}`, borderRadius:8, padding:"4px 10px", color:C.text, fontSize:15, fontFamily:"'Syne',sans-serif", fontWeight:700, width:"100%", marginBottom:4 }} />
-            ) : (
-              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:16 }}>{displayName}</div>
-            )}
-            <div style={{ fontSize:11, color:pt.accent }}>{supaUser?.email}</div>
-          </div>
-          <div style={{ display:"flex", gap:6, paddingBottom:4 }}>
-            {editingProfile ? (
-              <>
-                <button onClick={saveProfile} style={{ fontSize:11, color:C.bg, padding:"5px 12px", borderRadius:20, background:pt.accent, fontFamily:"inherit", fontWeight:700 }}>Save</button>
-                <button onClick={()=>setEditingProfile(false)} style={{ fontSize:11, color:C.textMuted, padding:"5px 10px", borderRadius:20, border:`1px solid ${C.border}`, fontFamily:"inherit" }}>✕</button>
-              </>
-            ) : (
-              <>
-                <button onClick={()=>{ setEditName(userProfile.displayName); setEditBio(userProfile.bio); setEditAvatar(userProfile.avatarEmoji); setEditingProfile(true); }} style={{ fontSize:11, color:pt.accent, padding:"5px 12px", borderRadius:20, border:`1px solid ${pt.accent}`, fontFamily:"inherit", fontWeight:700 }}>✏ Edit</button>
-                <button onClick={handleLogout} style={{ fontSize:11, color:C.danger, padding:"5px 10px", borderRadius:20, border:`1px solid ${C.danger}`, fontFamily:"inherit", fontWeight:700 }}>Exit</button>
-              </>
-            )}
-          </div>
+          {editingProfile && (
+            <button onClick={()=>setShowAvatarPicker(s=>!s)} style={{ position:"absolute", bottom:2, right:2, background:pt.accent, borderRadius:"50%", width:24, height:24, fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", color:C.bg, border:`2px solid ${C.bg}` }}>✏</button>
+          )}
         </div>
+
+        {/* Name */}
+        {editingProfile ? (
+          <input value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Display name" style={{ background:"transparent", border:`1px solid ${pt.accent}`, borderRadius:8, padding:"4px 12px", color:C.text, fontSize:18, fontFamily:"'Syne',sans-serif", fontWeight:700, textAlign:"center", marginBottom:4 }} />
+        ) : (
+          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:20, marginBottom:4 }}>{displayName}</div>
+        )}
+        <div style={{ fontSize:11, color:C.textDim, marginBottom:10 }}>@{supaUser?.email?.split("@")[0]}</div>
+
+        {/* Bio */}
+        {editingProfile ? (
+          <textarea value={editBio} onChange={e=>setEditBio(e.target.value)} placeholder="Bio..." rows={2} style={{ width:"100%", background:"rgba(28,30,33,.7)", border:`1px solid ${C.border}`, borderRadius:12, padding:"8px 12px", color:C.text, fontSize:12, fontFamily:"inherit", resize:"none", textAlign:"center", marginBottom:12 }} />
+        ) : userProfile.bio ? (
+          <div style={{ fontSize:12, color:C.textMuted, lineHeight:1.6, marginBottom:12, textAlign:"center", maxWidth:280 }}>{userProfile.bio}</div>
+        ) : <div style={{ marginBottom:8 }} />}
+
+        {/* Stats — minimal row */}
+        <div style={{ display:"flex", gap:24, marginBottom:16 }}>
+          {[[myChars.length, t.characters||"Characters"],[likedCharsList.length, t.liked||"Liked"],[followedAuthors.length, t.following||"Following"]].map(([val,label]) => (
+            <div key={label} style={{ textAlign:"center" }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16, color:pt.accent }}>{val}</div>
+              <div style={{ fontSize:9, color:C.textDim, textTransform:"uppercase", letterSpacing:.5, fontWeight:600 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Action buttons */}
+        <div style={{ display:"flex", gap:8 }}>
+          {editingProfile ? (
+            <>
+              <button onClick={saveProfile} style={{ fontSize:12, color:C.bg, padding:"8px 20px", borderRadius:20, background:pt.accent, fontFamily:"inherit", fontWeight:700 }}>✓ Save</button>
+              <button onClick={()=>setEditingProfile(false)} style={{ fontSize:12, color:C.textMuted, padding:"8px 16px", borderRadius:20, border:`1px solid ${C.border}`, fontFamily:"inherit" }}>Cancel</button>
+            </>
+          ) : (
+            <>
+              <button onClick={()=>{ setEditName(userProfile.displayName); setEditBio(userProfile.bio); setEditAvatar(userProfile.avatarEmoji); setEditingProfile(true); }} style={{ fontSize:12, color:pt.accent, padding:"8px 20px", borderRadius:20, border:`1px solid ${pt.accent}44`, fontFamily:"inherit", fontWeight:700, background:"rgba(255,255,255,.04)" }}>✏ Edit</button>
+              <button onClick={handleLogout} style={{ fontSize:12, color:C.textMuted, padding:"8px 16px", borderRadius:20, border:`1px solid ${C.border}44`, fontFamily:"inherit", fontWeight:600, background:"rgba(255,255,255,.02)" }}>Sign out</button>
+            </>
+          )}
+        </div>
+
+        {/* Avatar picker panel */}
         {showAvatarPicker && (
-          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:12, marginBottom:12 }}>
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:12, marginTop:12, width:"100%" }}>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display:"none" }} />
-            <button onClick={()=>fileInputRef.current?.click()} disabled={uploadingPhoto} style={{ width:"100%", marginBottom:10, padding:"10px", borderRadius:12, border:`1.5px dashed ${pt.accent}`, background:"transparent", color:pt.accent, fontFamily:"inherit", fontWeight:700, fontSize:12, display:"flex", alignItems:"center", justifyContent:"center", gap:8, cursor:"pointer" }}>
-              {uploadingPhoto ? "⏳ Uploading..." : "📷 Upload photo from gallery"}
+            <button onClick={()=>fileInputRef.current?.click()} disabled={uploadingPhoto} style={{ width:"100%", marginBottom:8, padding:"10px", borderRadius:12, border:`1.5px dashed ${pt.accent}`, background:"transparent", color:pt.accent, fontFamily:"inherit", fontWeight:700, fontSize:12, cursor:"pointer" }}>
+              {uploadingPhoto ? "⏳ Uploading..." : "📷 Upload photo"}
             </button>
             {userProfile.avatarPhoto && (
-              <button onClick={()=>{ setUserProfile(prev=>({...prev, avatarPhoto:null})); setShowAvatarPicker(false); }} style={{ width:"100%", marginBottom:10, padding:"8px", borderRadius:12, border:`1px solid ${C.danger}`, background:"transparent", color:C.danger, fontFamily:"inherit", fontSize:11, fontWeight:700 }}>
+              <button onClick={()=>{ setUserProfile(prev=>({...prev, avatarPhoto:null})); setShowAvatarPicker(false); }} style={{ width:"100%", marginBottom:8, padding:"8px", borderRadius:12, border:`1px solid ${C.danger}`, background:"transparent", color:C.danger, fontFamily:"inherit", fontSize:11, fontWeight:700 }}>
                 🗑 Remove photo
               </button>
             )}
             <div style={{ fontSize:10, color:C.textMuted, fontWeight:700, textTransform:"uppercase", letterSpacing:.4, marginBottom:8 }}>Or choose emoji</div>
             <div style={{ display:"flex", flexWrap:"wrap", gap:8, justifyContent:"center" }}>
               {AVATAR_EMOJIS.map(em => (
-                <button key={em} onClick={()=>{ setEditAvatar(em); setShowAvatarPicker(false); }} style={{ fontSize:26, width:44, height:44, borderRadius:12, border:`2px solid ${editAvatar===em?pt.accent:C.border}`, background:editAvatar===em?C.mintPale:C.surface, display:"flex", alignItems:"center", justifyContent:"center" }}>{em}</button>
+                <button key={em} onClick={()=>{ setEditAvatar(em); setShowAvatarPicker(false); }} style={{ fontSize:22, background:editAvatar===em?C.mintPale:"transparent", borderRadius:8, padding:"4px 6px", border:`1px solid ${editAvatar===em?C.mint:"transparent"}` }}>{em}</button>
               ))}
             </div>
           </div>
         )}
-        {editingProfile ? (
-          <textarea value={editBio} onChange={e=>setEditBio(e.target.value)} placeholder="Write something about yourself..." rows={2} style={{ width:"100%", background:"rgba(28,30,33,.7)", border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 12px", color:C.text, fontSize:12, fontFamily:"inherit", resize:"none", lineHeight:1.5, marginBottom:14 }} />
-        ) : userProfile.bio ? (
-          <div style={{ fontSize:12, color:C.textMuted, lineHeight:1.6, marginBottom:14 }}>{userProfile.bio}</div>
-        ) : null}
-        <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-          {[[myChars.length, "Characters"],[likedCharsList.length,"Liked"],[followedAuthors.length,"Following"],["∞","Messages"]].map(([val,label]) => (
-            <div key={label} style={{ flex:1, background:"rgba(28,30,33,.7)", border:`1px solid ${C.border}`, borderRadius:14, padding:"10px 8px", textAlign:"center", backdropFilter:"blur(8px)" }}>
-              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18, color:pt.accent }}>{val}</div>
-              <div style={{ fontSize:9, color:C.textMuted, marginTop:1, textTransform:"uppercase", letterSpacing:.4, fontWeight:600 }}>{label}</div>
+      </div>
+              {AVATAR_EMOJIS.map(em => (
+                <button key={em} onClick={()=>{ setEditAvatar(em); setShowAvatarPicker(false); }} style={{ fontSize:26, width:44, height:44, borderRadius:12, border:`2px solid ${editAvatar===em?pt.accent:C.border}`, background:editAvatar===em?C.mintPale:C.surface, display:"flex", alignItems:"center", justifyContent:"center" }}>{em}</button>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
       </div>
       <div style={{ display:"flex", borderBottom:`1px solid ${C.border}`, background:"rgba(14,15,17,.6)", backdropFilter:"blur(8px)", position:"sticky", top:0, zIndex:10 }}>
-        <button style={tabStyle("chars")} onClick={()=>setActiveTab("chars")}>🎭 My Chars</button>
-        <button style={tabStyle("liked")} onClick={()=>setActiveTab("liked")}>❤️ Liked</button>
-        <button style={tabStyle("following")} onClick={()=>setActiveTab("following")}>👥 Following</button>
-        <button style={tabStyle("settings")} onClick={()=>setActiveTab("settings")}>⚙️ Style</button>
+        <button style={tabStyle("chars")} onClick={()=>setActiveTab("chars")}>🎭 {t.characters||"Chars"}</button>
+        <button style={tabStyle("liked")} onClick={()=>setActiveTab("liked")}>❤️ {t.liked||"Liked"}</button>
+        <button style={tabStyle("following")} onClick={()=>setActiveTab("following")}>👥 {t.following||"Following"}</button>
+        <button style={tabStyle("settings")} onClick={()=>setActiveTab("settings")}>⚙️ {t.saveStyle||"Style"}</button>
       </div>
       <div style={{ padding:"14px 16px 32px" }}>
         {activeTab === "chars" && (
           <div>
             <div style={{ fontSize:11, color:pt.accent, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>🌍 Public · {myPublicChars.length}</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:18 }}>
-              {myPublicChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} onPlay={()=>openChat(char,{tone:char.tone||"neutral",censorship:char.censorship??true,responseSize:char.response_size||"medium"})} />)}
+              {myPublicChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} playLabel={t.play||"▶ Play"} onPlay={()=>openChat(char,{tone:char.tone||"neutral",censorship:char.censorship??true,responseSize:char.response_size||"medium"})} />)}
             </div>
             <div style={{ fontSize:11, color:C.textMuted, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>🔒 Private · {myPrivateChars.length}</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-              {myPrivateChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} isPrivate onPlay={()=>openChat(char,{tone:char.tone||"neutral",censorship:char.censorship??true,responseSize:char.response_size||"medium"})} />)}
+              {myPrivateChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} isPrivate playLabel={t.play||"▶ Play"} onPlay={()=>openChat(char,{tone:char.tone||"neutral",censorship:char.censorship??true,responseSize:char.response_size||"medium"})} />)}
             </div>
             {myChars.length === 0 && <div style={{ textAlign:"center", color:C.textMuted, padding:"30px 0", fontSize:13 }}>No characters yet. Create your first!</div>}
           </div>
@@ -1959,22 +2026,24 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
   );
 }
 
-function MiniCharCard({ char, pt, isPrivate, onPlay }) {
+function MiniCharCard({ char, pt, isPrivate, onPlay, playLabel }) {
   const avatar = char.avatar_emoji || char.avatar || "🌟";
   const color = char.avatar_color || char.color || "#2d4a3e";
   const desc = char.description || char.desc || "";
   return (
     <div style={{ background:"rgba(28,30,33,.85)", border:`1px solid ${isPrivate ? "#4a4f57" : C.border}`, borderRadius:14, overflow:"hidden", backdropFilter:"blur(8px)" }}>
       <div style={{ background:color, height:60, display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, position:"relative" }}>
-        {avatar}
+        {char.avatar_photo
+          ? <img src={char.avatar_photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+          : avatar}
         {isPrivate && <div style={{ position:"absolute", top:6, right:6, fontSize:10, background:"rgba(0,0,0,.6)", borderRadius:20, padding:"2px 6px" }}>🔒</div>}
       </div>
       <div style={{ padding:"8px 10px 10px" }}>
-        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:12, marginBottom:2, color:isPrivate?C.textMuted:C.text }}>{char.name}</div>
-        <div style={{ fontSize:10, color:C.textDim, lineHeight:1.4, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden", marginBottom:8 }}>{desc}</div>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:12, marginBottom:2, color:isPrivate?C.textMuted:C.text, textAlign:"left" }}>{char.name}</div>
+        <div style={{ fontSize:10, color:C.textDim, lineHeight:1.4, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden", marginBottom:8, textAlign:"left" }}>{desc}</div>
         {onPlay && (
           <button onClick={onPlay} style={{ width:"100%", background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:11, padding:"7px 0", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-            ▶ Ролити
+            {playLabel || "▶ Play"}
           </button>
         )}
       </div>
