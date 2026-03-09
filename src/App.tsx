@@ -1075,13 +1075,13 @@ function CreatePage({ t, lang, supaUser, onCharCreated, onOpenImported }) {
     const reader = new FileReader();
     reader.onload = (ev) => {
       img.onload = () => {
-        const size = 300;
+        const size = 128;
         canvas.width = size; canvas.height = size;
         const ctx = canvas.getContext("2d");
         const min = Math.min(img.width, img.height);
         const sx = (img.width - min)/2, sy = (img.height - min)/2;
         ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
         setCharPhotoPreview(dataUrl);
         setCharPhotoUrl(dataUrl);
         setUploadingCharPhoto(false);
@@ -1192,7 +1192,22 @@ Respond ONLY with valid JSON, no markdown, no explanation:
       tone,
       censorship: censor,
     });
-    if (error) { alert("Error: " + error.message); }
+    if (error) {
+      // If avatar_photo column doesn't exist, try without it
+      if (error.message?.includes("avatar_photo")) {
+        const { error: e2 } = await supabase.from("characters").insert({
+          user_id: supaUser.id, name: name.trim(), description: desc.trim(),
+          personality: personality.trim(), first_message: firstMsg.trim(),
+          memory: memory.trim(), tags: tags.split(",").map(t=>t.trim()).filter(Boolean),
+          visibility, avatar_emoji: randomAvatar, avatar_color: randomColor,
+          response_size: size, tone, censorship: censor,
+        });
+        if (e2) { alert("Error: " + e2.message); setPublishing(false); return; }
+        alert("⚠️ Photo not saved — run this SQL in Supabase:\nALTER TABLE characters ADD COLUMN IF NOT EXISTS avatar_photo text;");
+      } else {
+        alert("Error: " + error.message); setPublishing(false); return;
+      }
+    }
     else {
       setPublished(true);
       setName(""); setDesc(""); setPersonality(""); setFirstMsg(""); setMemory(""); setTags("");
@@ -1858,7 +1873,7 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
           const min = Math.min(img.width, img.height);
           const sx = (img.width - min) / 2, sy = (img.height - min) / 2;
           ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
           setUserProfile(prev => ({ ...prev, avatarPhoto: dataUrl }));
           await supabase.from("profiles").upsert({ id: supaUser.id, avatar_photo: dataUrl });
           setUploadingPhoto(false);
@@ -2127,13 +2142,13 @@ function EditCharModal({ char, lang, supaUser, onClose, onSaved }) {
     const reader = new FileReader();
     reader.onload = (ev) => {
       img.onload = () => {
-        const size = 300;
+        const size = 128;
         canvas.width = size; canvas.height = size;
         const ctx = canvas.getContext("2d");
         const min = Math.min(img.width, img.height);
         const sx = (img.width - min)/2, sy = (img.height - min)/2;
         ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
-        setPhotoPreview(canvas.toDataURL("image/jpeg", 0.82));
+        setPhotoPreview(canvas.toDataURL("image/jpeg", 0.7));
         setUploadingPhoto(false);
       };
       img.src = ev.target.result;
