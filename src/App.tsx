@@ -1929,12 +1929,6 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
           </div>
         )}
       </div>
-              {AVATAR_EMOJIS.map(em => (
-                <button key={em} onClick={()=>{ setEditAvatar(em); setShowAvatarPicker(false); }} style={{ fontSize:26, width:44, height:44, borderRadius:12, border:`2px solid ${editAvatar===em?pt.accent:C.border}`, background:editAvatar===em?C.mintPale:C.surface, display:"flex", alignItems:"center", justifyContent:"center" }}>{em}</button>
-              ))}
-            </div>
-          </div>
-      </div>
       <div style={{ display:"flex", borderBottom:`1px solid ${C.border}`, background:"rgba(14,15,17,.6)", backdropFilter:"blur(8px)", position:"sticky", top:0, zIndex:10 }}>
         <button style={tabStyle("chars")} onClick={()=>setActiveTab("chars")}>🎭 {t.characters||"Chars"}</button>
         <button style={tabStyle("liked")} onClick={()=>setActiveTab("liked")}>❤️ {t.liked||"Liked"}</button>
