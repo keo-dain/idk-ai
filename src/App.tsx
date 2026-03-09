@@ -2166,8 +2166,24 @@ function EditCharModal({ char, lang, supaUser, onClose, onSaved }) {
       avatar_photo: photoPreview || null,
       avatar_emoji: charEmoji,
     }).eq("id", char.id);
-    setSaving(false);
-    if (error) { alert("Error: " + error.message); return; }
+    if (error) {
+      if (error.message?.includes("avatar_photo")) {
+        // Column doesn't exist yet — save without photo
+        const { error: e2 } = await supabase.from("characters").update({
+          name: name.trim(), description: desc.trim(), personality: personality.trim(),
+          first_message: firstMsg.trim(), memory: memory.trim(),
+          visibility, tone, response_size: size, avatar_emoji: charEmoji,
+        }).eq("id", char.id);
+        setSaving(false);
+        if (e2) { alert("Error: " + e2.message); return; }
+        alert("Збережено! Але щоб фото працювало — виконай в Supabase SQL Editor:\n\nALTER TABLE characters ADD COLUMN IF NOT EXISTS avatar_photo text;");
+      } else {
+        setSaving(false);
+        alert("Error: " + error.message); return;
+      }
+    } else {
+      setSaving(false);
+    }
     onSaved();
   };
 
