@@ -491,68 +491,70 @@ export default function App() {
   const sendMessage = async (text) => {
     if (!isReg && msgCount >= FREE_LIMIT) { setShowReg(true); return; }
 
-    const userMsg = { id: `local-${Date.now()}`, role: "user", text };
-    setActiveSession(prev => ({ ...prev, messages: [...(prev.messages || []), userMsg] }));
+    const session = activeSession;
+    const charsArr = session?.chars || [];
+    const char = charsArr[Math.floor(Math.random() * charsArr.length)];
 
-    if (isReg && activeSession?.id && typeof activeSession.id === "string") {
-      await supabase.from("messages").insert({ session_id: activeSession.id, role: "user", text });
+    const userMsg = { id: `local-${Date.now()}`, role: "user", text };
+    const typingId = `typing-${Date.now()}`;
+    const typingMsg = { id: typingId, role: "ai", isTyping: true, charName: char?.name, charAvatar: char?.avatar || char?.avatar_emoji, text: "..." };
+
+    setActiveSession(prev => ({ ...prev, messages: [...(prev.messages || []), userMsg, typingMsg] }));
+
+    if (isReg && session?.id && typeof session.id === "string") {
+      await supabase.from("messages").insert({ session_id: session.id, role: "user", text });
       loadSessions(supaUser.id);
     }
 
-    setTimeout(async () => {
-      const session = activeSession;
-      const charsArr = session.chars || [];
-      const char = charsArr[Math.floor(Math.random() * charsArr.length)];
-      const tone = session.tone || "neutral";
-      const size = session.response_size || session.responseSize || "medium";
+    try {
+      const tone = session?.tone || "neutral";
+      const size = session?.response_size || session?.responseSize || "medium";
+      const langNames = { en:"English", ru:"Russian", uk:"Ukrainian", de:"German", it:"Italian", fr:"French", es:"Spanish", pl:"Polish" };
+      const replyLang = langNames[lang] || "English";
 
-      const AI_REPLIES_LOCALIZED = {
-        en: AI_REPLIES,
-        ru: {
-          romantic: [(n) => `*${n} смотрит на тебя тихо, что-то тёплое мелькает в их взгляде.* Я не ожидал чувствовать это. Не знаю, что с этим делать.`,(n) => `*Пальцы ${n} едва касаются твоих — почти случайно.* Ты делаешь сложнее держать дистанцию. Надеюсь, ты это знаешь.`],
-          dominant: [(n) => `*Взгляд ${n} останавливается на тебе с весом того, кто привык к подчинению.* Делай, как я говорю. Это не просьба.`,(n) => `*${n} медленно наклоняет голову, голос низкий и размеренный.* Я решаю, как это будет. Не ты. Понятно?`],
-          soft: [(n) => `*${n} тихо улыбается — той улыбкой, которой не нужна аудитория.* Тебе не нужно объяснять. Я понимаю. Не торопись.`,(n) => `*${n} осторожно тянется к тебе, не касаясь.* Я никуда не ухожу. Что бы тебе ни понадобилось.`],
-          rough: [(n) => `*${n} фыркает, взгляд скользит в сторону.* Не читай между строк. Я просто оказался здесь.`,(n) => `*${n} скрещивает руки, сжав челюсть.* Говори что хочешь. Это ничего не меняет.`],
-          playful: [(n) => `*Глаза ${n} загораются тем особым озорством.* О? И ты думаешь, это на меня подействует? Мило.`,(n) => `*${n} делает вид, что потрясён до глубины души.* Ты только что ЭТОГО не сказал. Я лично ранен. Раздавлен.`],
-          neutral: [(n) => `*${n} изучает тебя с тихой точностью, что-то нечитаемое за их взглядом.* Есть вещи, которые я пока не могу сказать. Оставайся рядом — это может измениться.`,(n) => `*Тишина между вами растягивается, отягощённая невысказанным.* ${n} наконец говорит: Ты проницательнее, чем я думал.`],
-        },
-        uk: {
-          romantic: [(n) => `*${n} тихо дивиться на тебе, щось тепле промайнуло в їхньому погляді.* Я не очікував відчути це. Не знаю, що з цим робити.`,(n) => `*Пальці ${n} ледь торкаються твоїх — майже випадково.* Ти ускладнюєш дистанцію. Сподіваюсь, ти це знаєш.`],
-          dominant: [(n) => `*Погляд ${n} зупиняється на тобі з вагою того, хто звик до підкорення.* Робиш як я кажу. Це не прохання.`,(n) => `*${n} повільно нахиляє голову, голос низький і виважений.* Я вирішую як це буде. Не ти. Зрозуміло?`],
-          soft: [(n) => `*${n} тихо усміхається — тією посмішкою, якій не потрібна аудиторія.* Тобі не треба пояснювати. Я розумію. Не поспішай.`,(n) => `*${n} обережно тягнеться до тебе, не торкаючись.* Я нікуди не йду. Що б тобі не знадобилось.`],
-          rough: [(n) => `*${n} фиркає, погляд ковзає вбік.* Не читай між рядків. Я просто опинився тут.`,(n) => `*${n} схрещує руки, стиснувши щелепу.* Кажи що хочеш. Це нічого не змінює.`],
-          playful: [(n) => `*Очі ${n} загораються тим особливим пустощами.* О? І ти думаєш це на мене подіє? Мило.`,(n) => `*${n} вдає що вражений до глибини душі.* Ти щойно ЦЬОГО не сказав. Я особисто поранений. Спустошений.`],
-          neutral: [(n) => `*${n} вивчає тебе з тихою точністю, щось нечитане за їхнім поглядом.* Є речі, які я поки не можу сказати. Залишайся поруч — це може змінитись.`,(n) => `*Тиша між вами розтягується, обтяжена невисловленим.* ${n} нарешті каже: Ти проникливіший, ніж я думав.`],
-        },
-      };
+      const charName = char?.name || "Character";
+      const charPersonality = char?.personality || char?.desc || char?.description || "";
+      const charMemory = char?.memory || "";
+      const charFirstMsg = char?.first_message || char?.firstMsg || "";
+      const sizeInstr = { small:"1-2 sentences only.", medium:"2-4 sentences.", large:"4-7 sentences with vivid detail." };
+      const toneInstr = { romantic:"Be warm, intimate, emotionally vulnerable.", dominant:"Be commanding, confident, in control.", soft:"Be gentle, caring, patient.", rough:"Be blunt, cold, defensive but real.", playful:"Be witty, teasing, light-hearted.", neutral:"Be natural and authentic to your character." };
 
-      const localReplies = AI_REPLIES_LOCALIZED[lang] || AI_REPLIES;
-      const pool = localReplies[tone] || localReplies.neutral || AI_REPLIES.neutral;
-      let reply = pool[Math.floor(Math.random() * pool.length)](char.name);
+      const systemPrompt = `You are ${charName} in a roleplay. Stay fully in character at all times. Never say you are an AI.
+${charPersonality ? `\nYour personality:\n${charPersonality}` : ""}${charMemory ? `\nThings you always remember:\n${charMemory}` : ""}
+Tone: ${toneInstr[tone] || toneInstr.neutral}
+Length: ${sizeInstr[size] || sizeInstr.medium}
+Language: Always respond in ${replyLang}.
+Format: Use *italics for actions* and "quotes for speech". Be immersive and literary.`;
 
-      if (size === "small") { const s = reply.match(/[^.!?]+[.!?]+/g) || [reply]; reply = s.slice(0,1).join("").trim(); }
-      if (size === "medium") { const s = reply.match(/[^.!?]+[.!?]+/g) || [reply]; reply = s.slice(0,2).join("").trim(); }
-      if (size === "large") {
-        reply += ` *${char.name} lets the silence stretch, watching you with quiet intensity that makes the air feel heavier.* "But then again — maybe that's exactly why you're still here."`;
-      }
+      const history = (session?.messages || [])
+        .filter(m => !m.isTyping)
+        .slice(-12)
+        .map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.text }));
+      history.push({ role: "user", content: text });
 
-      const aiMsg = {
-        id: `local-ai-${Date.now()}`,
-        role: "ai",
-        charName: char.name,
-        charAvatar: char.avatar,
-        text: reply,
-        originalText: reply,
-      };
+      const messages = charFirstMsg && history.length <= 2
+        ? [{ role: "assistant", content: charFirstMsg }, ...history]
+        : history;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: size === "large" ? 600 : size === "small" ? 150 : 350,
+          system: systemPrompt,
+          messages,
+        })
+      });
+      const data = await res.json();
+      const reply = data.content?.[0]?.text?.trim() || `*${charName} looks at you quietly, saying nothing for a moment.*`;
+
+      const aiMsg = { id: `local-ai-${Date.now()}`, role: "ai", charName: char?.name, charAvatar: char?.avatar || char?.avatar_emoji, text: reply, originalText: reply };
 
       if (isReg && session?.id && typeof session.id === "string") {
         const { data: saved } = await supabase.from("messages").insert({
-          session_id: session.id,
-          role: "ai",
-          text: reply,
-          original_text: reply,
-          char_name: char.name,
-          char_avatar: char.avatar,
+          session_id: session.id, role: "ai", text: reply, original_text: reply,
+          char_name: char?.name, char_avatar: char?.avatar || char?.avatar_emoji,
         }).select().single();
         if (saved) aiMsg.id = saved.id;
         loadSessions(supaUser.id);
@@ -560,9 +562,12 @@ export default function App() {
 
       setActiveSession(prev => {
         if (!prev) return prev;
-        return { ...prev, messages: [...(prev.messages || []), aiMsg] };
+        const msgs = (prev.messages || []).filter(m => m.id !== typingId);
+        return { ...prev, messages: [...msgs, aiMsg] };
       });
-    }, 850);
+    } catch {
+      setActiveSession(prev => prev ? { ...prev, messages: (prev.messages||[]).filter(m => m.id !== typingId) } : prev);
+    }
 
     if (!isReg) setMsgCount(n => n + 1);
   };
@@ -635,7 +640,7 @@ export default function App() {
         {page==="home"    && <div style={{ flex:1 }}><HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} likedChars={likedChars} setLikedChars={setLikedChars} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} publicUsers={publicUsers} supaUser={supaUser} /></div>}
         {page==="create"  && <div style={{ flex:1 }}><CreatePage  t={t} lang={lang} supaUser={supaUser} onCharCreated={()=>supaUser&&loadMyChars(supaUser.id)} onOpenImported={(char)=>{ openChat(char, { tone: char.tone||"neutral" }); }} /></div>}
         {page==="chats"   && <div style={{ flex:1 }}><ChatsPage   t={t} sessions={sessions} sessionsLoading={sessionsLoading} onContinue={continueSession} onDelete={deleteSession} lang={lang} isReg={isReg} onShowAuth={()=>setShowReg(true)} /></div>}
-        {page==="profile" && <div style={{ flex:1 }}><ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} /></div>}
+        {page==="profile" && <div style={{ flex:1 }}><ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} openChat={openChat} /></div>}
         {page==="chat" && activeSession && <ChatPage t={t} chat={activeSession} onSend={sendMessage} onBack={() => { setPage("chats"); loadSessions(supaUser?.id); }} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} />}
       </div>
 
@@ -1683,7 +1688,7 @@ function AuthModal({ t, C, onClose, onSuccess }) {
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
 const AVATAR_EMOJIS = ["🌙","⭐","🌸","🔥","💎","🌊","🦋","🐉","🌿","✨","🎭","🗡️","🪐","🌑","💀","🦊","🐺","🌺","🎪","🔮"];
 
-function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang, supaUser, onShowAuth, followed, likedChars, userProfile, setUserProfile, myCharsDB }) {
+function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang, supaUser, onShowAuth, followed, likedChars, userProfile, setUserProfile, myCharsDB, openChat }) {
   const [activeTab, setActiveTab] = useState("chars");
   const [editingProfile, setEditingProfile] = useState(false);
   const [editName, setEditName] = useState(userProfile.displayName);
@@ -1840,11 +1845,11 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
           <div>
             <div style={{ fontSize:11, color:pt.accent, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>🌍 Public · {myPublicChars.length}</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:18 }}>
-              {myPublicChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} />)}
+              {myPublicChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} onPlay={()=>openChat(char,{tone:char.tone||"neutral",censorship:char.censorship??true,responseSize:char.response_size||"medium"})} />)}
             </div>
             <div style={{ fontSize:11, color:C.textMuted, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:10 }}>🔒 Private · {myPrivateChars.length}</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-              {myPrivateChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} isPrivate />)}
+              {myPrivateChars.map(char => <MiniCharCard key={char.id} char={char} pt={pt} isPrivate onPlay={()=>openChat(char,{tone:char.tone||"neutral",censorship:char.censorship??true,responseSize:char.response_size||"medium"})} />)}
             </div>
             {myChars.length === 0 && <div style={{ textAlign:"center", color:C.textMuted, padding:"30px 0", fontSize:13 }}>No characters yet. Create your first!</div>}
           </div>
@@ -1855,7 +1860,7 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
               <div style={{ textAlign:"center", color:C.textMuted, padding:"30px 0", fontSize:13 }}><div style={{ fontSize:32, marginBottom:10 }}>🤍</div>No liked characters yet.</div>
             ) : (
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                {likedCharsList.map(char => <MiniCharCard key={char.id} char={char} pt={pt} />)}
+                {likedCharsList.map(char => <MiniCharCard key={char.id} char={char} pt={pt} onPlay={()=>openChat(char,{tone:"neutral"})} />)}
               </div>
             )}
           </div>
@@ -1920,7 +1925,7 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
   );
 }
 
-function MiniCharCard({ char, pt, isPrivate }) {
+function MiniCharCard({ char, pt, isPrivate, onPlay }) {
   const avatar = char.avatar_emoji || char.avatar || "🌟";
   const color = char.avatar_color || char.color || "#2d4a3e";
   const desc = char.description || char.desc || "";
@@ -1930,9 +1935,14 @@ function MiniCharCard({ char, pt, isPrivate }) {
         {avatar}
         {isPrivate && <div style={{ position:"absolute", top:6, right:6, fontSize:10, background:"rgba(0,0,0,.6)", borderRadius:20, padding:"2px 6px" }}>🔒</div>}
       </div>
-      <div style={{ padding:"8px 10px" }}>
+      <div style={{ padding:"8px 10px 10px" }}>
         <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:12, marginBottom:2, color:isPrivate?C.textMuted:C.text }}>{char.name}</div>
-        <div style={{ fontSize:10, color:C.textDim, lineHeight:1.4, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{desc}</div>
+        <div style={{ fontSize:10, color:C.textDim, lineHeight:1.4, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden", marginBottom:8 }}>{desc}</div>
+        {onPlay && (
+          <button onClick={onPlay} style={{ width:"100%", background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:11, padding:"7px 0", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+            ▶ Ролити
+          </button>
+        )}
       </div>
     </div>
   );
