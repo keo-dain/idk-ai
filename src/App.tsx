@@ -5,6 +5,36 @@ const SUPABASE_URL = "https://oigwwlhdjqjmrozobmln.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ3d3bGhkanFqbXJvem9ibWxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MzkxOTMsImV4cCI6MjA4ODQxNTE5M30.B2z9eq0UC0S7Ez20ubeoyoSdtHiprLNJf6FHGhSzJ5I";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// DeepSeek API key — set in Vercel as VITE_DEEPSEEK_KEY
+// Get key at: platform.deepseek.com
+const AI_KEY = import.meta.env?.VITE_DEEPSEEK_KEY || "";
+
+async function callAI({ system, messages, max_tokens = 500 }) {
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${AI_KEY}`,
+  };
+  const allMessages = system
+    ? [{ role: "system", content: system }, ...messages]
+    : messages;
+  const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: "deepseek-chat",
+      max_tokens,
+      temperature: 0.9,
+      messages: allMessages,
+    }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e?.error?.message || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content?.trim() || "";
+}
+
 const C = {
   bg: "#0e0f11", surface: "#161719", card: "#1c1e21", cardHover: "#222427",
   border: "#2a2d31", mint: "#7ecfb3", mintDim: "#4a9e85", mintPale: "#1a3d33",
@@ -332,17 +362,11 @@ async function translateRoleplayText(text, targetLang) {
   const langNames = { en:"English", ru:"Russian", uk:"Ukrainian", de:"German", it:"Italian", fr:"French", es:"Spanish", pl:"Polish" };
   const target = langNames[targetLang] || "English";
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({
-        model:"claude-sonnet-4-20250514",
-        max_tokens:600,
-        messages:[{ role:"user", content:`Translate this roleplay message to ${target}. Keep *actions in asterisks* as-is style (translate content but keep asterisks). Keep the tone, emotion, and literary style. Return ONLY the translated text, nothing else:\n\n${text}` }]
-      })
+    const result = await callAI({
+      max_tokens: 600,
+      messages:[{ role:"user", content:`Translate this roleplay message to ${target}. Keep *actions in asterisks* style. Keep the tone and literary style. Return ONLY the translated text:\n\n${text}` }]
     });
-    const data = await res.json();
-    return data.content?.[0]?.text?.trim() || text;
+    return result || text;
   } catch { return text; }
 }
 
@@ -594,35 +618,31 @@ export default function App() {
       const sizeInstr = { small:"1-2 sentences only.", medium:"2-4 sentences.", large:"4-7 sentences with vivid detail." };
       const toneInstr = { romantic:"Be warm, intimate, emotionally vulnerable.", dominant:"Be commanding, confident, in control.", soft:"Be gentle, caring, patient.", rough:"Be blunt, cold, defensive but real.", playful:"Be witty, teasing, light-hearted.", neutral:"Be natural and authentic to your character." };
 
-      const systemPrompt = `You are ${charName} in a roleplay. Stay fully in character at all times. Never say you are an AI.
-${charPersonality ? `\nYour personality:\n${charPersonality}` : ""}${charMemory ? `\nThings you always remember:\n${charMemory}` : ""}
+      const systemPrompt = `You are ${charName} in a roleplay. Stay fully in character. Never say you are an AI.
+${charPersonality ? `Personality: ${charPersonality}` : ""}${charMemory ? `\nMemory: ${charMemory}` : ""}
 Tone: ${toneInstr[tone] || toneInstr.neutral}
 Length: ${sizeInstr[size] || sizeInstr.medium}
 Language: Always respond in ${replyLang}.
-Format: Use *italics for actions* and "quotes for speech". Be immersive and literary.`;
+Format: Use *italics for actions* and "quotes for speech". Be immersive.`;
 
-      const history = (session?.messages || [])
+      // Build conversation history
+      const prevMessages = (session?.messages || [])
         .filter(m => !m.isTyping)
-        .slice(-12)
-        .map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.text }));
-      history.push({ role: "user", content: text });
+        .slice(-14);
 
-      const messages = charFirstMsg && history.length <= 2
-        ? [{ role: "assistant", content: charFirstMsg }, ...history]
-        : history;
+      // Use Anthropic via proxy (already works for other features)
+      const allMessages = [];
+      if (charFirstMsg) allMessages.push({ role: "assistant", content: charFirstMsg });
+      for (const m of prevMessages) {
+        allMessages.push({ role: m.role === "user" ? "user" : "assistant", content: m.text });
+      }
+      allMessages.push({ role: "user", content: text });
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: size === "large" ? 600 : size === "small" ? 150 : 350,
-          system: systemPrompt,
-          messages,
-        })
-      });
-      const data = await res.json();
-      const reply = data.content?.[0]?.text?.trim() || `*${charName} looks at you quietly, saying nothing for a moment.*`;
+      const reply = await callAI({
+        system: systemPrompt,
+        messages: allMessages,
+        max_tokens: size === "large" ? 600 : size === "small" ? 150 : 350,
+      }) || `*${charName} looks at you quietly.*`;
 
       const aiMsg = { id: `local-ai-${Date.now()}`, role: "ai", charName: char?.name, charAvatar: char?.avatar || char?.avatar_emoji, text: reply, originalText: reply };
 
@@ -640,8 +660,18 @@ Format: Use *italics for actions* and "quotes for speech". Be immersive and lite
         const msgs = (prev.messages || []).filter(m => m.id !== typingId);
         return { ...prev, messages: [...msgs, aiMsg] };
       });
-    } catch {
-      setActiveSession(prev => prev ? { ...prev, messages: (prev.messages||[]).filter(m => m.id !== typingId) } : prev);
+    } catch(err) {
+      console.error("sendMessage error:", err);
+      const isNoKey = !AI_KEY || err?.message?.includes("401") || err?.message?.includes("Authentication");
+      const errText = isNoKey
+        ? `*Потрібен API ключ DeepSeek.*\n\nДодай у Vercel → Settings → Environment Variables:\nVITE_DEEPSEEK_KEY = твій ключ\n\nБезкоштовний ключ: platform.deepseek.com`
+        : `*Помилка з'єднання: ${err?.message || "невідома помилка"}*`;
+      const errMsg = { id: `err-${Date.now()}`, role: "ai", charName: char?.name, charAvatar: char?.avatar || char?.avatar_emoji, text: errText, originalText: "" };
+      setActiveSession(prev => {
+        if (!prev) return prev;
+        const msgs = (prev.messages || []).filter(m => m.id !== typingId);
+        return { ...prev, messages: [...msgs, errMsg] };
+      });
     }
 
     if (!isReg) setMsgCount(n => n + 1);
@@ -770,16 +800,11 @@ function HomePage({ t, chars, search, setSearch, homeTab, setHomeTab, followed, 
       const toTranslate = chars.filter(c => !translatedDescs[`${c.id}_${lang}`]);
       if (!toTranslate.length) return;
       try {
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({
-            model:"claude-sonnet-4-20250514", max_tokens:600,
-            messages:[{ role:"user", content:`Translate these character descriptions to ${target}. Return ONLY a JSON object like {"1":"translation","2":"translation",...} no explanation:\n${toTranslate.map(c=>`${c.id}: ${c.desc}`).join("\n")}` }]
-          })
+        const raw = await callAI({
+          max_tokens: 600,
+          messages:[{ role:"user", content:`Translate these character descriptions to ${target}. Return ONLY a JSON object like {"1":"translation","2":"translation",...} no explanation:\n${toTranslate.map(c=>`${c.id}: ${c.desc}`).join("\n")}` }]
         });
-        const data = await res.json();
-        const raw = data.content?.[0]?.text?.replace(/```json|```/g,"").trim() || "{}";
-        const parsed = JSON.parse(raw);
+        const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim() || "{}");
         const newDescs = {};
         Object.entries(parsed).forEach(([id, desc]) => { newDescs[`${id}_${lang}`] = desc; });
         setTranslatedDescs(prev => ({...prev, ...newDescs}));
@@ -1122,18 +1147,11 @@ Be creative. Make it rich and interesting.
 Respond ONLY with valid JSON, no markdown, no explanation:
 {"name":"character name","desc":"one-line description","personality":"3-5 sentences about personality, backstory, how they talk","firstMsg":"immersive opening roleplay message with *actions in asterisks* and dialogue in quotes, 3-5 sentences","tags":["tag1","tag2"],"tone":"neutral|romantic|dominant|soft|rough|playful"}`;
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 900,
-          messages: [{ role: "user", content: prompt }]
-        })
+      const raw = await callAI({
+        max_tokens: 900,
+        messages: [{ role: "user", content: prompt }]
       });
-      const data = await res.json();
-      const raw = (data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim() || "{}");
       if (parsed.name) {
         setImportedChar(parsed);
       } else {
@@ -1231,15 +1249,11 @@ Respond ONLY with valid JSON, no markdown, no explanation:
       ? `Придумай 5 разных вариантов первого рольового сообщения для персонажа по имени "${autoName}" в жанре "${theme}". Каждый вариант должен быть уникальным по стилю: один загадочный, один романтический, один доминантный, один мягкий, один игривый. Формат: JSON массив из 5 строк, только JSON без пояснений. Каждое сообщение 2-4 предложения, включает действие в *звёздочках* и диалог в кавычках.`
       : `Generate 5 different opening roleplay messages for a character named "${autoName}" in the genre "${theme}". Make each unique in style: one mysterious, one romantic, one dominant, one soft, one playful. Format: JSON array of 5 strings, JSON only, no explanation. Each message 2-4 sentences with action in *asterisks* and dialogue in quotes.`;
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] })
+      const raw = await callAI({
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }]
       });
-      const data = await res.json();
-      const raw = data.content?.[0]?.text || "[]";
-      const clean = raw.replace(/```json|```/g,"").trim();
-      const parsed = JSON.parse(clean);
+      const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim() || "[]");
       setAutoOptions(Array.isArray(parsed) ? parsed : []);
     } catch(e) {
       setAutoOptions([
