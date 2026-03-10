@@ -5,34 +5,27 @@ const SUPABASE_URL = "https://oigwwlhdjqjmrozobmln.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ3d3bGhkanFqbXJvem9ibWxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MzkxOTMsImV4cCI6MjA4ODQxNTE5M30.B2z9eq0UC0S7Ez20ubeoyoSdtHiprLNJf6FHGhSzJ5I";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// DeepSeek API key — set in Vercel as VITE_DEEPSEEK_KEY
-// Get key at: platform.deepseek.com
-const AI_KEY = import.meta.env?.VITE_DEEPSEEK_KEY || "";
+// Claude API — key set in Vercel as ANTHROPIC_API_KEY or VITE_ANTHROPIC_KEY
+const AI_KEY = import.meta.env?.VITE_ANTHROPIC_KEY || import.meta.env?.ANTHROPIC_API_KEY || "";
 
 async function callAI({ system, messages, max_tokens = 500 }) {
   const headers = {
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${AI_KEY}`,
+    "anthropic-version": "2023-06-01",
+    "anthropic-dangerous-direct-browser-access": "true",
   };
-  const allMessages = system
-    ? [{ role: "system", content: system }, ...messages]
-    : messages;
-  const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: "deepseek-chat",
-      max_tokens,
-      temperature: 0.9,
-      messages: allMessages,
-    }),
+  if (AI_KEY) headers["x-api-key"] = AI_KEY;
+  const body = { model: "claude-haiku-4-5-20251001", max_tokens, messages };
+  if (system) body.system = system;
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST", headers, body: JSON.stringify(body),
   });
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
     throw new Error(e?.error?.message || `HTTP ${res.status}`);
   }
   const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || "";
+  return data.content?.[0]?.text?.trim() || "";
 }
 
 const C = {
