@@ -680,6 +680,50 @@ Format: Use *italics for actions* and "quotes for speech". Be immersive.`;
     }
   };
 
+  const regenerateMessage = async (msg) => {
+    const session = activeSession;
+    if (!session) return;
+    const charsArr = session.chars || [];
+    const char = charsArr.find(c => c.name === msg.charName) || charsArr[0];
+    const tone = session.tone || "neutral";
+    const size = session.response_size || "medium";
+    const langNames = { en:"English", ru:"Russian", uk:"Ukrainian", de:"German", it:"Italian", fr:"French", es:"Spanish", pl:"Polish" };
+    const replyLang = langNames[lang] || "English";
+    const charName = char?.name || "Character";
+    const sizeInstr = { small:"1-2 sentences only.", medium:"2-4 sentences.", large:"4-7 sentences with vivid detail." };
+    const toneInstr = { romantic:"Be warm, intimate, emotionally vulnerable.", dominant:"Be commanding, confident, in control.", soft:"Be gentle, caring, patient.", rough:"Be blunt, cold, defensive but real.", playful:"Be witty, teasing, light-hearted.", neutral:"Be natural and authentic to your character." };
+    const systemPrompt = `You are ${charName} in a roleplay. Stay fully in character. Never say you are an AI.
+${char?.personality ? `Personality: ${char.personality}` : ""}
+Tone: ${toneInstr[tone] || toneInstr.neutral}
+Length: ${sizeInstr[size] || sizeInstr.medium}
+Language: Always respond in ${replyLang}.
+Format: Use *italics for actions* and "quotes for speech". Give a DIFFERENT response than before — be creative.`;
+
+    // Build history up to but not including this message
+    const msgIdx = (session.messages || []).findIndex(m => m.id === msg.id);
+    const prevMessages = (session.messages || []).slice(0, msgIdx).filter(m => !m.isTyping).slice(-12);
+    const allMessages = prevMessages.map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.text }));
+
+    try {
+      const newReply = await callAI({ system: systemPrompt, messages: allMessages, max_tokens: size === "large" ? 600 : size === "small" ? 150 : 350 });
+      if (!newReply) return;
+      // Add new variant to message
+      setActiveSession(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          messages: prev.messages.map(m => {
+            if (m.id !== msg.id) return m;
+            const variants = m.variants || [m.text];
+            return { ...m, variants: [...variants, newReply] };
+          })
+        };
+      });
+    } catch(err) {
+      console.error("regenerate error:", err);
+    }
+  };
+
   useEffect(() => {
     if (!activeSession?.messages?.length) return;
     const translateMsgs = async () => {
@@ -746,7 +790,7 @@ Format: Use *italics for actions* and "quotes for speech". Be immersive.`;
         {page==="create"  && <div style={{ flex:1 }}><CreatePage  t={t} lang={lang} supaUser={supaUser} onCharCreated={()=>supaUser&&loadMyChars(supaUser.id)} onOpenImported={(char)=>{ openChat(char, { tone: char.tone||"neutral" }); }} /></div>}
         {page==="chats"   && <div style={{ flex:1 }}><ChatsPage   t={t} sessions={sessions} sessionsLoading={sessionsLoading} onContinue={continueSession} onDelete={deleteSession} lang={lang} isReg={isReg} onShowAuth={()=>setShowReg(true)} /></div>}
         {page==="profile" && <div style={{ flex:1 }}><ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} openChat={openChat} loadMyChars={loadMyChars} /></div>}
-        {page==="chat" && activeSession && <ChatPage t={t} chat={activeSession} onSend={sendMessage} onBack={() => { setPage("chats"); loadSessions(supaUser?.id); }} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} />}
+        {page==="chat" && activeSession && <ChatPage t={t} chat={activeSession} onSend={sendMessage} onBack={() => { setPage("chats"); loadSessions(supaUser?.id); }} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} onRegenerate={regenerateMessage} />}
       </div>
 
       {groupMode && groupChars.length > 0 && page==="home" && (
@@ -1627,14 +1671,15 @@ function RoleText({ text, fontSize, lineHeight, isUser }) {
   );
 }
 
-// ─── CHAT PAGE (з підтримкою кастомного фото фону) ────────────────────────────
-function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts }) {
+// ─── CHAT PAGE ────────────────────────────────────────────────────────────────
+function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, onRegenerate }) {
   const [input, setInput] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
+  const [variantIdx, setVariantIdx] = useState({}); // msgId → current variant index
+  const [regenerating, setRegenerating] = useState(null); // msgId being regenerated
   const bottomRef = useRef(null);
   const wp = WALLPAPERS.find(w=>w.id===chat.wallpaper)||WALLPAPERS[0];
-  // Custom bg support
   const customBgStyle = chat.customBg
     ? { backgroundImage:`url(${chat.customBg})`, backgroundSize:"cover", backgroundPosition:"center", backgroundRepeat:"no-repeat" }
     : {};
@@ -1644,6 +1689,31 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
   const startEdit = (msg) => { setEditingId(msg.id); setEditText(msg.text); };
   const saveEdit  = () => { editMessage(chat.id, editingId, editText); setEditingId(null); };
   const chars = chat.chars || [];
+
+  const getVariants = (msg) => msg.variants || [msg.text];
+  const getCurrentIdx = (msg) => variantIdx[msg.id] ?? (getVariants(msg).length - 1);
+  const getCurrentText = (msg) => getVariants(msg)[getCurrentIdx(msg)] || msg.text;
+
+  const handlePrev = (msg) => {
+    const idx = getCurrentIdx(msg);
+    if (idx > 0) setVariantIdx(p => ({ ...p, [msg.id]: idx - 1 }));
+  };
+  const handleNext = (msg) => {
+    const idx = getCurrentIdx(msg);
+    const variants = getVariants(msg);
+    if (idx < variants.length - 1) setVariantIdx(p => ({ ...p, [msg.id]: idx + 1 }));
+  };
+  const handleRegenerate = async (msg) => {
+    if (regenerating) return;
+    setRegenerating(msg.id);
+    await onRegenerate(msg);
+    setRegenerating(null);
+    // Jump to last variant after regen
+    setVariantIdx(p => {
+      const variants = msg.variants || [msg.text];
+      return { ...p, [msg.id]: variants.length }; // new variant will be at this index
+    });
+  };
 
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", flex:1, ...wp.css, ...customBgStyle }}>
@@ -1687,8 +1757,39 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
                   </div>
                 </div>
               ):(
-                <div style={{ background:msg.role==="user"?"rgba(26,61,51,.88)":"rgba(28,30,33,.88)", border:`1px solid ${msg.role==="user"?C.mintDim:C.border}`, borderRadius:msg.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px", padding:"10px 14px", backdropFilter:"blur(4px)" }}>
-                  <RoleText text={msg.text} fontSize={(ts||{fontSize:13}).fontSize} lineHeight={(ts||{lineHeight:1.7}).lineHeight} isUser={msg.role==="user"} />
+                <div>
+                  <div style={{ background:msg.role==="user"?"rgba(26,61,51,.88)":"rgba(28,30,33,.88)", border:`1px solid ${msg.role==="user"?C.mintDim:C.border}`, borderRadius:msg.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px", padding:"10px 14px", backdropFilter:"blur(4px)" }}>
+                    <RoleText text={msg.isTyping ? "..." : getCurrentText(msg)} fontSize={(ts||{fontSize:13}).fontSize} lineHeight={(ts||{lineHeight:1.7}).lineHeight} isUser={msg.role==="user"} />
+                  </div>
+                  {/* Variant controls — only for AI messages that are not typing */}
+                  {msg.role==="ai" && !msg.isTyping && (
+                    <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:5, paddingLeft:4 }}>
+                      {/* Prev */}
+                      <button
+                        onClick={()=>handlePrev(msg)}
+                        disabled={getCurrentIdx(msg)===0}
+                        style={{ fontSize:13, color:getCurrentIdx(msg)===0?C.textDim:C.mint, background:"none", padding:"2px 5px", borderRadius:6, border:`1px solid ${getCurrentIdx(msg)===0?C.border:C.mintDim}`, opacity:getCurrentIdx(msg)===0?0.3:1, lineHeight:1 }}
+                      >‹</button>
+                      {/* Counter */}
+                      <span style={{ fontSize:10, color:C.textDim, minWidth:28, textAlign:"center" }}>
+                        {getCurrentIdx(msg)+1}/{getVariants(msg).length}
+                      </span>
+                      {/* Next */}
+                      <button
+                        onClick={()=>handleNext(msg)}
+                        disabled={getCurrentIdx(msg)>=getVariants(msg).length-1}
+                        style={{ fontSize:13, color:getCurrentIdx(msg)>=getVariants(msg).length-1?C.textDim:C.mint, background:"none", padding:"2px 5px", borderRadius:6, border:`1px solid ${getCurrentIdx(msg)>=getVariants(msg).length-1?C.border:C.mintDim}`, opacity:getCurrentIdx(msg)>=getVariants(msg).length-1?0.3:1, lineHeight:1 }}
+                      >›</button>
+                      {/* Regenerate */}
+                      <button
+                        onClick={()=>handleRegenerate(msg)}
+                        disabled={!!regenerating}
+                        style={{ fontSize:11, color:C.textMuted, background:"rgba(28,30,33,.8)", padding:"2px 8px", borderRadius:8, border:`1px solid ${C.border}`, fontFamily:"inherit", marginLeft:2, opacity:regenerating===msg.id?0.5:1 }}
+                      >
+                        {regenerating===msg.id ? "..." : "↺"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
