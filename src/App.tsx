@@ -1698,7 +1698,7 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts })
       </div>
       <div style={{ padding:"10px 13px 18px", background:"rgba(22,23,25,.95)", borderTop:`1px solid ${C.border}`, backdropFilter:"blur(10px)", flexShrink:0 }}>
         <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
-          <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleSend(); } }} placeholder={t.typeMsg} rows={1} style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"11px 14px", color:C.text, fontSize:14, fontFamily:"inherit", resize:"none", lineHeight:1.5, transition:"border-color .2s", maxHeight:100 }} />
+          <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleSend(); } }} placeholder={t.typeMsg} rows={5} style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"11px 14px", color:C.text, fontSize:14, fontFamily:"inherit", resize:"none", lineHeight:1.5, transition:"border-color .2s" }} />
           <button onClick={handleSend} style={{ background:C.mint, color:C.bg, borderRadius:14, width:42, height:42, fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>↑</button>
         </div>
       </div>
