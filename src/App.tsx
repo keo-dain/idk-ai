@@ -1100,8 +1100,7 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
 }
 
 // ─── CREATE ───────────────────────────────────────────────────────────────────
-function CreatePage({ t, lang, supaUser, onCharCreated, onOpenImported }) {
-  const [activeTab, setActiveTab] = useState("create");
+function CreatePage({ t, lang, supaUser, onCharCreated }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [personality, setPersonality] = useState("");
@@ -1154,74 +1153,8 @@ function CreatePage({ t, lang, supaUser, onCharCreated, onOpenImported }) {
     reader.readAsDataURL(file);
   };
 
-  // Import from link
-  const [importUrl, setImportUrl] = useState("");
-  const [importing, setImporting] = useState(false);
-  const [importedChar, setImportedChar] = useState(null);
-  const [importError, setImportError] = useState("");
+  // (import from link removed)
 
-  const handleImport = async () => {
-    if (!importUrl.trim()) return;
-    setImporting(true);
-    setImportError("");
-    setImportedChar(null);
-    try {
-      const isUrl = importUrl.trim().startsWith("http");
-      // Extract name hint from URL slug if possible
-      let nameHint = importUrl;
-      if (isUrl) {
-        try {
-          const slug = new URL(importUrl).pathname.split("/").filter(Boolean).pop() || "";
-          nameHint = slug.replace(/[-_]/g," ").replace(/[^a-zA-Z0-9\u0400-\u04FF\s]/g,"").trim() || importUrl;
-        } catch { nameHint = importUrl; }
-      }
-
-      const prompt = `Create a detailed roleplay character based on this: "${nameHint}"
-
-If this looks like a character name (e.g. "Kento Nanami", "Viktor", "Aelindra") — create a character with that name.
-If it's a URL slug — extract the name from it and create a character.
-Be creative. Make it rich and interesting.
-
-Respond ONLY with valid JSON, no markdown, no explanation:
-{"name":"character name","desc":"one-line description","personality":"3-5 sentences about personality, backstory, how they talk","firstMsg":"immersive opening roleplay message with *actions in asterisks* and dialogue in quotes, 3-5 sentences","tags":["tag1","tag2"],"tone":"neutral|romantic|dominant|soft|rough|playful"}`;
-
-      const raw = await callAI({
-        max_tokens: 900,
-        messages: [{ role: "user", content: prompt }]
-      });
-      const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim() || "{}");
-      if (parsed.name) {
-        setImportedChar(parsed);
-      } else {
-        setImportError("Не вдалось розпізнати персонажа. Вставте ім'я персонажа або опис напряму.");
-      }
-    } catch {
-      setImportError("Щось пішло не так. Вставте ім'я персонажа або опис напряму.");
-    }
-    setImporting(false);
-  };
-
-  const useImportedChar = () => {
-    if (!importedChar) return;
-    const CHAR_COLORS = ["#2d4a3e","#1e2a3a","#2a1e3a","#3a2a1e","#3a1e2a","#1e3a2a","#1a2a3a","#2a1a3a"];
-    const CHAR_AVATARS = ["🧝‍♀️","🕵️","🤖","⚔️","🌸","🌑","💻","🪶","🐉","🦋","🔮","🌙","⭐","🦊","🐺"];
-    const charObj = {
-      id: `imported-${Date.now()}`,
-      name: importedChar.name,
-      description: importedChar.desc,
-      desc: importedChar.desc,
-      personality: importedChar.personality,
-      tags: importedChar.tags || [],
-      author: "imported",
-      avatar_color: CHAR_COLORS[Math.floor(Math.random() * CHAR_COLORS.length)],
-      avatar_emoji: CHAR_AVATARS[Math.floor(Math.random() * CHAR_AVATARS.length)],
-      first_message: importedChar.firstMsg,
-      firstMsg: importedChar.firstMsg,
-      tone: importedChar.tone || "neutral",
-      visibility: "private",
-    };
-    onOpenImported(charObj);
-  };
 
   const CHAR_COLORS = ["#2d4a3e","#1e2a3a","#2a1e3a","#3a2a1e","#3a1e2a","#1e3a2a","#1a2a3a","#2a1a3a"];
   const CHAR_AVATARS = ["🧝‍♀️","🕵️","🤖","⚔️","🌸","🌑","💻","🪶","🐉","🦋","🔮","🌙","⭐","🦊","🐺"];
@@ -1308,76 +1241,10 @@ Respond ONLY with valid JSON, no markdown, no explanation:
   const inp = { width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", color:C.text, fontSize:14, fontFamily:"inherit", display:"block", transition:"border-color .2s", marginTop:6 };
 
   return (
-    <div style={{ padding:"15px 18px 32px",  }}>
+    <div style={{ padding:"15px 18px 32px" }}>
       <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:14, textAlign:"left" }}>{t.createChar}</div>
 
-      {/* Tabs: Create / Import */}
-      <div style={{ display:"flex", background:C.card, borderRadius:14, overflow:"hidden", border:`1px solid ${C.border}`, marginBottom:18 }}>
-        {[["create","✦ Create"],["import","🔗 Import from link"]].map(([tab, label]) => (
-          <button key={tab} onClick={()=>{ setActiveTab(tab); setImportError(""); setImportedChar(null); }} style={{ flex:1, padding:"10px 6px", fontSize:12, fontWeight:700, fontFamily:"inherit", color:activeTab===tab?C.bg:C.textMuted, background:activeTab===tab?C.mint:"transparent", transition:"all .2s", textAlign:"center" }}>{label}</button>
-        ))}
-      </div>
-
-      {/* ── IMPORT TAB ── */}
-      {activeTab === "import" && (
-        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          <div style={{ background:"rgba(126,207,179,.07)", border:`1px solid ${C.mintDim}`, borderRadius:14, padding:"12px 14px" }}>
-            <div style={{ fontSize:12, color:C.mint, fontWeight:700, marginBottom:6 }}>Supported platforms</div>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-              {["Character.AI","Janitor AI","Chub.ai","NovelAI","Tavern","Pygmalion","Spicy Chat"].map(p => (
-                <span key={p} style={{ fontSize:10, padding:"3px 9px", borderRadius:20, background:C.mintPale, color:C.mint, fontWeight:600 }}>{p}</span>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div style={{ fontSize:12, color:C.text, fontWeight:600, marginBottom:6, textAlign:"left" }}>🔗 Paste character link or name</div>
-            <textarea
-              value={importUrl}
-              onChange={e=>setImportUrl(e.target.value)}
-              placeholder={"https://character.ai/chat/... \nor paste character name + description"}
-              rows={3}
-              style={{ ...inp, marginTop:0, resize:"none", lineHeight:1.5 }}
-            />
-          </div>
-
-          <button onClick={handleImport} disabled={importing || !importUrl.trim()} style={{ width:"100%", background:importUrl.trim()?C.mint:"rgba(126,207,179,.3)", color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, padding:"13px 0", borderRadius:14, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:importing?0.7:1, cursor:importUrl.trim()?"pointer":"not-allowed" }}>
-            {importing ? <><span style={{ display:"inline-block", animation:"spin 1s linear infinite" }}>◌</span> Importing...</> : "✦ Import Character"}
-          </button>
-
-          {importError && (
-            <div style={{ background:"rgba(224,124,124,.12)", border:`1px solid ${C.danger}`, borderRadius:12, padding:"10px 14px", fontSize:12, color:C.danger, lineHeight:1.5 }}>{importError}</div>
-          )}
-
-          {importedChar && (
-            <div style={{ background:C.card, border:`1.5px solid ${C.mint}`, borderRadius:16, overflow:"hidden" }}>
-              <div style={{ background:"#1a3d33", padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
-                <span style={{ fontSize:36 }}>
-                  {["🧝‍♀️","🕵️","🤖","⚔️","🌸","🌑","💻","🪶"][Math.floor(Math.random()*8)]}
-                </span>
-                <div>
-                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16, color:C.mint }}>{importedChar.name}</div>
-                  {importedChar.source && <div style={{ fontSize:10, color:C.mintDim, marginTop:2 }}>Imported from {importedChar.source}</div>}
-                </div>
-              </div>
-              <div style={{ padding:"12px 16px", display:"flex", flexDirection:"column", gap:8 }}>
-                <div style={{ fontSize:12, color:C.textMuted, lineHeight:1.6 }}>{importedChar.desc}</div>
-                <div style={{ fontSize:11, color:C.textDim, lineHeight:1.5, fontStyle:"italic", borderLeft:`2px solid ${C.mintDim}`, paddingLeft:10 }}>{importedChar.firstMsg?.slice(0,120)}...</div>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:4 }}>
-                  {(importedChar.tags||[]).map(tag => <span key={tag} className="pill">{tag}</span>)}
-                </div>
-                <div style={{ display:"flex", gap:8, marginTop:6 }}>
-                  <button onClick={useImportedChar} style={{ flex:2, background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:13, padding:"11px 0", borderRadius:12 }}>▶ Start Roleplay</button>
-                  <button onClick={()=>{ setName(importedChar.name); setDesc(importedChar.desc); setPersonality(importedChar.personality); setFirstMsg(importedChar.firstMsg); setTags((importedChar.tags||[]).join(", ")); setTone(importedChar.tone||"neutral"); setActiveTab("create"); }} style={{ flex:1, background:C.card, color:C.mint, fontFamily:"inherit", fontWeight:700, fontSize:12, padding:"11px 0", borderRadius:12, border:`1px solid ${C.mint}` }}>✏ Edit & Save</button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ── CREATE TAB ── */}
-      {activeTab === "create" && (
       <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
         {/* Avatar picker */}
         <div>
@@ -1492,7 +1359,6 @@ Respond ONLY with valid JSON, no markdown, no explanation:
           <button onClick={handlePublish} disabled={publishing} style={{ flex:2, padding:"11px", borderRadius:14, background:published?"#4a9e85":C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:14, opacity:publishing?0.7:1 }}>{publishing?"⏳...":published?"✓ Published!":t.publish}</button>
         </div>
       </div>
-      )} {/* end create tab */}
     </div>
   );
 }
