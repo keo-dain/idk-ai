@@ -589,7 +589,8 @@ export default function App() {
     const charsArr = session?.chars || [];
     const char = charsArr[Math.floor(Math.random() * charsArr.length)];
 
-    const userMsg = { id: `local-${Date.now()}`, role: "user", text };
+    const now = new Date().toISOString();
+    const userMsg = { id: `local-${Date.now()}`, role: "user", text, sentAt: now };
     const typingId = `typing-${Date.now()}`;
     const typingMsg = { id: typingId, role: "ai", isTyping: true, charName: char?.name, charAvatar: char?.avatar_photo || char?.avatar || char?.avatar_emoji, text: "..." };
 
@@ -679,7 +680,8 @@ LANGUAGE: Respond ONLY in ${replyLang}. Every single word in ${replyLang}. No ex
         setActiveSession(prev => prev ? { ...prev, mood: newMood } : prev);
       }
 
-      const aiMsg = { id: `local-ai-${Date.now()}`, role: "ai", charName: char?.name, charAvatar: char?.avatar_photo || char?.avatar || char?.avatar_emoji, text: reply, originalText: reply };
+      const aiMsgTime = new Date().toISOString();
+      const aiMsg = { id: `local-ai-${Date.now()}`, role: "ai", charName: char?.name, charAvatar: char?.avatar_photo || char?.avatar || char?.avatar_emoji, text: reply, originalText: reply, sentAt: aiMsgTime, streaming: true };
 
       if (isReg && session?.id && typeof session.id === "string") {
         const { data: saved } = await supabase.from("messages").insert({
@@ -690,10 +692,29 @@ LANGUAGE: Respond ONLY in ${replyLang}. Every single word in ${replyLang}. No ex
         loadSessions(supaUser.id);
       }
 
+      // Replace typing with full message, then stream it in
       setActiveSession(prev => {
         if (!prev) return prev;
         const msgs = (prev.messages || []).filter(m => m.id !== typingId);
         return { ...prev, messages: [...msgs, aiMsg] };
+      });
+
+      // Streaming effect — reveal text word by word
+      const words = reply.split(" ");
+      let revealed = "";
+      for (let i = 0; i < words.length; i++) {
+        revealed += (i === 0 ? "" : " ") + words[i];
+        const snap = revealed;
+        setActiveSession(prev => {
+          if (!prev) return prev;
+          return { ...prev, messages: prev.messages.map(m => m.id === aiMsg.id ? { ...m, text: snap } : m) };
+        });
+        await new Promise(r => setTimeout(r, 18));
+      }
+      // Mark streaming done
+      setActiveSession(prev => {
+        if (!prev) return prev;
+        return { ...prev, messages: prev.messages.map(m => m.id === aiMsg.id ? { ...m, streaming: false } : m) };
       });
     } catch(err) {
       console.error("sendMessage error:", err);
@@ -823,6 +844,7 @@ LANGUAGE: Respond ONLY in ${replyLang}. Every word in ${replyLang}.`;
         @keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         .nb{transition:all .15s}
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes typingBounce{0%,80%,100%{transform:translateY(0);opacity:.35}40%{transform:translateY(-5px);opacity:1}}
         .fab{transition:all .15s}
         .fab:hover{opacity:.85;transform:translateY(-1px)}
         .session-card:hover .del-btn{opacity:1!important}
@@ -1173,6 +1195,7 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
   const [personality, setPersonality] = useState("");
   const [firstMsg, setFirstMsg] = useState("");
   const [memory, setMemory] = useState("");
+  const [location, setLocation] = useState("");
   const [visibility, setVisibility] = useState("public");
   const [tags, setTags] = useState("");
   const [size, setSize] = useState("medium");
@@ -1433,6 +1456,23 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
 // ─── CHATS PAGE ───────────────────────────────────────────────────────────────
 function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, isReg, onShowAuth }) {
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [archived, setArchived] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("archivedChats") || "[]"); } catch { return []; }
+  });
+  const [showArchive, setShowArchive] = useState(false);
+
+  const toggleArchive = (e, sessionId) => {
+    e.stopPropagation();
+    setArchived(prev => {
+      const next = prev.includes(sessionId) ? prev.filter(id => id !== sessionId) : [...prev, sessionId];
+      localStorage.setItem("archivedChats", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const activeSessions = sessions.filter(s => !archived.includes(s.id));
+  const archivedSessions = sessions.filter(s => archived.includes(s.id));
+  const visibleSessions = showArchive ? archivedSessions : activeSessions;
 
   if (!isReg) return (
     <div style={{ padding:"14px 18px 24px",  }}>
@@ -1464,14 +1504,22 @@ function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, i
   );
 
   return (
-    <div style={{ padding:"14px 14px 24px",  }}>
-      <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:14 }}>{t.chats}</div>
+    <div style={{ padding:"14px 14px 24px" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21 }}>{t.chats}</div>
+        {archivedSessions.length > 0 && (
+          <button onClick={()=>setShowArchive(s=>!s)} style={{ fontSize:11, color:showArchive?C.mint:C.textMuted, background:showArchive?"rgba(126,207,179,.1)":C.card, border:`1px solid ${showArchive?C.mintDim:C.border}`, borderRadius:20, padding:"5px 12px", fontFamily:"inherit", fontWeight:700 }}>
+            📦 {showArchive ? "← Active" : `Archive (${archivedSessions.length})`}
+          </button>
+        )}
+      </div>
       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-        {sessions.map(session => {
+        {visibleSessions.map(session => {
           const chars = Array.isArray(session.chars) ? session.chars : [];
           const wp = WALLPAPERS.find(w => w.id === session.wallpaper) || WALLPAPERS[0];
           const tn = TONES.find(x => x.id === session.tone);
           const isRecent = session.last_used_at && (Date.now() - new Date(session.last_used_at).getTime()) < 1000 * 60 * 30;
+          const isArchived = archived.includes(session.id);
 
           return (
             <div key={session.id} className="session-card" style={{ position:"relative" }}>
@@ -1514,6 +1562,7 @@ function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, i
                     {t.continueChat} →
                   </div>
                   <button className="del-btn" onClick={e => { e.stopPropagation(); setConfirmDelete(session.id); }} style={{ fontSize:10, color:C.textDim, opacity:0, transition:"opacity .15s", padding:"2px 6px", borderRadius:6, background:"transparent" }}>🗑</button>
+                  <button className="del-btn" onClick={e=>toggleArchive(e, session.id)} style={{ fontSize:10, color:C.textDim, opacity:0, transition:"opacity .15s", padding:"2px 6px", borderRadius:6, background:"transparent" }}>{isArchived?"📤":"📦"}</button>
                 </div>
               </div>
             </div>
@@ -1769,66 +1818,82 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, o
       )}
 
       {/* Messages */}
-      <div style={{ flex:1, overflowY:"auto", padding:"14px 13px", display:"flex", flexDirection:"column", gap:10 }}>
+      <div style={{ flex:1, overflowY:"auto", padding:"10px 0", display:"flex", flexDirection:"column", gap:2 }}>
         {(!chat.messages || chat.messages.length===0) && (
-          <div style={{ textAlign:"center", color:C.textMuted, fontSize:13, marginTop:40 }}>
+          <div style={{ textAlign:"center", color:C.textMuted, fontSize:13, marginTop:40, padding:"0 20px" }}>
             <div style={{ fontSize:38, marginBottom:10 }}>{chars[0]?.avatar_photo ? <img src={chars[0].avatar_photo} alt="" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover" }} /> : chars[0]?.avatar_emoji || chars[0]?.avatar || "🌟"}</div>
             <div>Begin your story with <strong>{chars.map(c=>c.name).join(" & ")}</strong></div>
             {chat.userChar && <div style={{ fontSize:11, color:C.mintDim, marginTop:6 }}>Playing as: {chat.userChar}</div>}
           </div>
         )}
-        {visibleMsgs.map(msg=>(
-          <div key={msg.id} className="mb" style={{ display:"flex", flexDirection:msg.role==="user"?"row-reverse":"row", gap:8, alignItems:"flex-end" }}>
-            {msg.role==="ai" && (
-              <div style={{ width:32, height:32, borderRadius:"50%", overflow:"hidden", flexShrink:0, background:C.card, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
-                {msg.charAvatar && (msg.charAvatar.startsWith("http") || msg.charAvatar.startsWith("data:"))
-                  ? <img src={msg.charAvatar} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
-                  : msg.charAvatar}
+        {visibleMsgs.map(msg=>{
+          const isUser = msg.role === "user";
+          const timeStr = msg.sentAt ? new Date(msg.sentAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}) : "";
+          return (
+          <div key={msg.id} className="mb" style={{ display:"flex", flexDirection:"column", alignItems: isUser ? "flex-end" : "flex-start", padding: isUser ? "3px 12px 3px 40px" : "3px 40px 3px 12px" }}>
+            {/* Avatar + name row — only for AI, shown above bubble */}
+            {!isUser && (
+              <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:4 }}>
+                <div style={{ width:28, height:28, borderRadius:"50%", overflow:"hidden", background:C.card, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>
+                  {msg.charAvatar && (msg.charAvatar.startsWith("http") || msg.charAvatar.startsWith("data:"))
+                    ? <img src={msg.charAvatar} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                    : msg.charAvatar}
+                </div>
+                <span style={{ fontSize:11, color:C.mint, fontWeight:700 }}>{msg.charName}</span>
+                {editingId!==msg.id && !msg.isTyping && (
+                  <button onClick={()=>startEdit(msg)} style={{ fontSize:10, color:C.textDim, padding:"1px 7px", borderRadius:8, background:"rgba(28,30,33,.8)", border:`1px solid ${C.border}`, fontFamily:"inherit" }}>✏</button>
+                )}
               </div>
             )}
-            <div style={{ maxWidth:"80%" }}>
-              {msg.role==="ai" && (
-                <div style={{ fontSize:10, color:C.mint, fontWeight:700, marginBottom:3, paddingLeft:4, display:"flex", alignItems:"center", gap:6 }}>
-                  {msg.charName}
-                  {editingId!==msg.id && (<button onClick={()=>startEdit(msg)} style={{ fontSize:10, color:C.textDim, padding:"1px 7px", borderRadius:8, background:"rgba(28,30,33,.8)", border:`1px solid ${C.border}`, fontFamily:"inherit" }}>✏ {t.editMsg}</button>)}
+            {editingId===msg.id ? (
+              <div style={{ width:"100%" }}>
+                <textarea value={editText} onChange={e=>setEditText(e.target.value)} rows={4} style={{ width:"100%", background:C.card, border:`1px solid ${C.mint}`, borderRadius:12, padding:"10px 12px", color:C.text, fontSize:13, fontFamily:"inherit", resize:"none", lineHeight:1.6 }} />
+                <div style={{ display:"flex", gap:6, marginTop:5 }}>
+                  <button onClick={saveEdit} style={{ flex:1, background:C.mint, color:C.bg, borderRadius:10, padding:"7px 0", fontSize:12, fontFamily:"inherit", fontWeight:700 }}>Save</button>
+                  <button onClick={()=>setEditingId(null)} style={{ flex:1, background:C.card, color:C.textMuted, borderRadius:10, padding:"7px 0", fontSize:12, fontFamily:"inherit", border:`1px solid ${C.border}` }}>Cancel</button>
                 </div>
-              )}
-              {editingId===msg.id ? (
-                <div>
-                  <textarea value={editText} onChange={e=>setEditText(e.target.value)} rows={4} style={{ width:"100%", background:C.card, border:`1px solid ${C.mint}`, borderRadius:12, padding:"10px 12px", color:C.text, fontSize:13, fontFamily:"inherit", resize:"none", lineHeight:1.6 }} />
-                  <div style={{ display:"flex", gap:6, marginTop:5 }}>
-                    <button onClick={saveEdit} style={{ flex:1, background:C.mint, color:C.bg, borderRadius:10, padding:"7px 0", fontSize:12, fontFamily:"inherit", fontWeight:700 }}>Save</button>
-                    <button onClick={()=>setEditingId(null)} style={{ flex:1, background:C.card, color:C.textMuted, borderRadius:10, padding:"7px 0", fontSize:12, fontFamily:"inherit", border:`1px solid ${C.border}` }}>Cancel</button>
-                  </div>
-                </div>
-              ):(
-                <div>
-                  <div style={{ background:msg.role==="user"?"rgba(26,61,51,.88)":"rgba(28,30,33,.88)", border:`1px solid ${msg.role==="user"?C.mintDim:C.border}`, borderRadius:msg.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px", padding:"10px 14px", backdropFilter:"blur(4px)" }}>
-                    <RoleText text={msg.isTyping ? "..." : getCurrentText(msg)} fontSize={(ts||{fontSize:13}).fontSize} lineHeight={(ts||{lineHeight:1.7}).lineHeight} isUser={msg.role==="user"} />
-                  </div>
-                  {msg.role==="ai" && !msg.isTyping && (
-                    <div style={{ display:"flex", alignItems:"center", gap:3, marginTop:4, paddingLeft:4, flexWrap:"wrap" }}>
-                      <button onClick={()=>handlePrev(msg)} disabled={getCurrentIdx(msg)===0} style={{ fontSize:13, color:getCurrentIdx(msg)===0?C.textDim:C.mint, background:"none", padding:"2px 5px", borderRadius:6, border:`1px solid ${getCurrentIdx(msg)===0?C.border:C.mintDim}`, opacity:getCurrentIdx(msg)===0?0.3:1 }}>‹</button>
-                      <span style={{ fontSize:10, color:C.textDim, minWidth:28, textAlign:"center" }}>{getCurrentIdx(msg)+1}/{getVariants(msg).length}</span>
-                      <button onClick={()=>handleNext(msg)} disabled={getCurrentIdx(msg)>=getVariants(msg).length-1} style={{ fontSize:13, color:getCurrentIdx(msg)>=getVariants(msg).length-1?C.textDim:C.mint, background:"none", padding:"2px 5px", borderRadius:6, border:`1px solid ${getCurrentIdx(msg)>=getVariants(msg).length-1?C.border:C.mintDim}`, opacity:getCurrentIdx(msg)>=getVariants(msg).length-1?0.3:1 }}>›</button>
-                      <button onClick={()=>handleRegenerate(msg)} disabled={!!regenerating} style={{ fontSize:11, color:C.textMuted, background:"rgba(28,30,33,.8)", padding:"2px 8px", borderRadius:8, border:`1px solid ${C.border}`, fontFamily:"inherit", opacity:regenerating===msg.id?0.5:1 }}>{regenerating===msg.id?"...":"↺"}</button>
-                      <button onClick={()=>speakText(getCurrentText(msg), msg.id)} style={{ fontSize:11, color:ttsPlaying===msg.id?C.mint:C.textDim, background:"rgba(28,30,33,.8)", padding:"2px 7px", borderRadius:8, border:`1px solid ${ttsPlaying===msg.id?C.mintDim:C.border}` }}>{ttsPlaying===msg.id?"⏹":"🔊"}</button>
-                      <button onClick={()=>togglePin(msg)} style={{ fontSize:11, color:pinned.find(m=>m.id===msg.id)?C.gold:C.textDim, background:"rgba(28,30,33,.8)", padding:"2px 7px", borderRadius:8, border:`1px solid ${C.border}` }}>📌</button>
+              </div>
+            ):(
+              <div style={{ width:"100%" }}>
+                {/* Bubble */}
+                <div style={{
+                  background: isUser ? "rgba(26,61,51,.88)" : "rgba(28,30,33,.88)",
+                  border: `1px solid ${isUser ? C.mintDim : C.border}`,
+                  borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                  padding:"11px 15px",
+                  backdropFilter:"blur(4px)",
+                  width:"100%",
+                }}>
+                  {msg.isTyping ? (
+                    <div style={{ display:"flex", alignItems:"center", gap:5, padding:"2px 0" }}>
+                      <span style={{ display:"flex", gap:4, alignItems:"center" }}>
+                        {[0,1,2].map(n => (
+                          <span key={n} style={{ width:6, height:6, borderRadius:"50%", background:C.mint, display:"inline-block", animation:`typingBounce 1.2s ease-in-out ${n*0.2}s infinite` }} />
+                        ))}
+                      </span>
                     </div>
+                  ) : (
+                    <RoleText text={getCurrentText(msg)} fontSize={(ts||{fontSize:13}).fontSize} lineHeight={(ts||{lineHeight:1.7}).lineHeight} isUser={isUser} />
                   )}
                 </div>
-              )}
-            </div>
+                {/* Time + controls row */}
+                <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:4, justifyContent: isUser ? "flex-end" : "flex-start", flexWrap:"wrap" }}>
+                  {timeStr && <span style={{ fontSize:9, color:C.textDim }}>{timeStr}</span>}
+                  {!isUser && !msg.isTyping && (<>
+                    <button onClick={()=>handlePrev(msg)} disabled={getCurrentIdx(msg)===0} style={{ fontSize:12, color:getCurrentIdx(msg)===0?C.textDim:C.mint, background:"none", padding:"1px 4px", borderRadius:5, border:`1px solid ${getCurrentIdx(msg)===0?C.border:C.mintDim}`, opacity:getCurrentIdx(msg)===0?0.3:1 }}>‹</button>
+                    <span style={{ fontSize:9, color:C.textDim }}>{getCurrentIdx(msg)+1}/{getVariants(msg).length}</span>
+                    <button onClick={()=>handleNext(msg)} disabled={getCurrentIdx(msg)>=getVariants(msg).length-1} style={{ fontSize:12, color:getCurrentIdx(msg)>=getVariants(msg).length-1?C.textDim:C.mint, background:"none", padding:"1px 4px", borderRadius:5, border:`1px solid ${getCurrentIdx(msg)>=getVariants(msg).length-1?C.border:C.mintDim}`, opacity:getCurrentIdx(msg)>=getVariants(msg).length-1?0.3:1 }}>›</button>
+                    <button onClick={()=>handleRegenerate(msg)} disabled={!!regenerating} style={{ fontSize:10, color:C.textMuted, background:"rgba(28,30,33,.8)", padding:"1px 7px", borderRadius:7, border:`1px solid ${C.border}`, fontFamily:"inherit", opacity:regenerating===msg.id?0.5:1 }}>{regenerating===msg.id?"...":"↺"}</button>
+                    <button onClick={()=>speakText(getCurrentText(msg), msg.id)} style={{ fontSize:10, color:ttsPlaying===msg.id?C.mint:C.textDim, background:"rgba(28,30,33,.8)", padding:"1px 6px", borderRadius:7, border:`1px solid ${ttsPlaying===msg.id?C.mintDim:C.border}` }}>{ttsPlaying===msg.id?"⏹":"🔊"}</button>
+                    <button onClick={()=>togglePin(msg)} style={{ fontSize:10, color:pinned.find(m=>m.id===msg.id)?C.gold:C.textDim, background:"rgba(28,30,33,.8)", padding:"1px 6px", borderRadius:7, border:`1px solid ${C.border}` }}>📌</button>
+                  </>)}
+                </div>
+              </div>
+            )}
           </div>
-        ))}
+          );
+        })}
         <div ref={bottomRef} />
-      </div>
-
-      {/* Quick replies */}
-      <div style={{ display:"flex", gap:6, padding:"6px 13px 0", overflowX:"auto", flexShrink:0 }}>
-        {QUICK_REPLIES.map((qr, i) => (
-          <button key={i} onClick={()=>handleSend(qr)} style={{ flexShrink:0, fontSize:11, color:C.mint, background:"rgba(126,207,179,.08)", border:`1px solid ${C.mintDim}`, borderRadius:20, padding:"5px 12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>{qr}</button>
-        ))}
       </div>
 
       {/* Input */}
