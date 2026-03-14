@@ -517,7 +517,7 @@ export default function App() {
             id: `first-${Date.now()}`,
             role: "ai",
             charName: firstChar.name,
-            charAvatar: firstChar.avatar || firstChar.avatar_emoji,
+            charAvatar: firstChar.avatar_photo || firstChar.avatar || firstChar.avatar_emoji,
             text: firstMsg,
             originalText: firstMsg,
           };
@@ -529,7 +529,7 @@ export default function App() {
             text: firstMsg,
             original_text: firstMsg,
             char_name: firstChar.name,
-            char_avatar: firstChar.avatar || firstChar.avatar_emoji,
+            char_avatar: firstChar.avatar_photo || firstChar.avatar || firstChar.avatar_emoji,
           });
         }
         const session = { ...newSession, messages, customBg: settings.customBg || null };
@@ -548,7 +548,7 @@ export default function App() {
         id: `first-${Date.now()}`,
         role: "ai",
         charName: firstChar.name,
-        charAvatar: firstChar.avatar || firstChar.avatar_emoji,
+        charAvatar: firstChar.avatar_photo || firstChar.avatar || firstChar.avatar_emoji,
         text: firstMsg,
         originalText: firstMsg,
       }];
@@ -589,7 +589,7 @@ export default function App() {
 
     const userMsg = { id: `local-${Date.now()}`, role: "user", text };
     const typingId = `typing-${Date.now()}`;
-    const typingMsg = { id: typingId, role: "ai", isTyping: true, charName: char?.name, charAvatar: char?.avatar || char?.avatar_emoji, text: "..." };
+    const typingMsg = { id: typingId, role: "ai", isTyping: true, charName: char?.name, charAvatar: char?.avatar_photo || char?.avatar || char?.avatar_emoji, text: "..." };
 
     setActiveSession(prev => ({ ...prev, messages: [...(prev.messages || []), userMsg, typingMsg] }));
 
@@ -637,12 +637,12 @@ Format: Use *italics for actions* and "quotes for speech". Be immersive.`;
         max_tokens: size === "large" ? 600 : size === "small" ? 150 : 350,
       }) || `*${charName} looks at you quietly.*`;
 
-      const aiMsg = { id: `local-ai-${Date.now()}`, role: "ai", charName: char?.name, charAvatar: char?.avatar || char?.avatar_emoji, text: reply, originalText: reply };
+      const aiMsg = { id: `local-ai-${Date.now()}`, role: "ai", charName: char?.name, charAvatar: char?.avatar_photo || char?.avatar || char?.avatar_emoji, text: reply, originalText: reply };
 
       if (isReg && session?.id && typeof session.id === "string") {
         const { data: saved } = await supabase.from("messages").insert({
           session_id: session.id, role: "ai", text: reply, original_text: reply,
-          char_name: char?.name, char_avatar: char?.avatar || char?.avatar_emoji,
+          char_name: char?.name, char_avatar: char?.avatar_photo || char?.avatar || char?.avatar_emoji,
         }).select().single();
         if (saved) aiMsg.id = saved.id;
         loadSessions(supaUser.id);
@@ -659,7 +659,7 @@ Format: Use *italics for actions* and "quotes for speech". Be immersive.`;
       const errText = isNoKey
         ? `*Потрібен API ключ DeepSeek.*\n\nДодай у Vercel → Settings → Environment Variables:\nVITE_DEEPSEEK_KEY = твій ключ\n\nБезкоштовний ключ: platform.deepseek.com`
         : `*Помилка з'єднання: ${err?.message || "невідома помилка"}*`;
-      const errMsg = { id: `err-${Date.now()}`, role: "ai", charName: char?.name, charAvatar: char?.avatar || char?.avatar_emoji, text: errText, originalText: "" };
+      const errMsg = { id: `err-${Date.now()}`, role: "ai", charName: char?.name, charAvatar: char?.avatar_photo || char?.avatar || char?.avatar_emoji, text: errText, originalText: "" };
       setActiveSession(prev => {
         if (!prev) return prev;
         const msgs = (prev.messages || []).filter(m => m.id !== typingId);
@@ -1555,8 +1555,10 @@ function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, i
               <div onClick={() => onContinue(session)} style={{ background:C.card, border:`1.5px solid ${isRecent ? C.mintDim : C.border}`, borderRadius:16, padding:"13px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12, transition:"all .18s" }}
                 onMouseEnter={e=>{ e.currentTarget.style.background=C.cardHover; e.currentTarget.style.borderColor=C.mint; }}
                 onMouseLeave={e=>{ e.currentTarget.style.background=C.card; e.currentTarget.style.borderColor=isRecent?C.mintDim:C.border; }}>
-                <div style={{ width:48, height:48, borderRadius:14, ...wp.css, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0, position:"relative" }}>
-                  {chars.map(c => c.avatar || c.avatar_emoji || "🌟").join("")}
+                <div style={{ width:48, height:48, borderRadius:14, ...wp.css, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0, position:"relative", overflow:"hidden" }}>
+                  {chars[0]?.avatar_photo
+                    ? <img src={chars[0].avatar_photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                    : chars.map(c => c.avatar || c.avatar_emoji || "🌟").join("")}
                   {isRecent && (
                     <div style={{ position:"absolute", top:-3, right:-3, width:10, height:10, borderRadius:"50%", background:C.mint, border:`2px solid ${C.card}`, boxShadow:`0 0 6px ${C.mint}` }} />
                   )}
@@ -1740,7 +1742,13 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, o
         )}
         {(chat.messages || []).map(msg=>(
           <div key={msg.id} className="mb" style={{ display:"flex", flexDirection:msg.role==="user"?"row-reverse":"row", gap:8, alignItems:"flex-end" }}>
-            {msg.role==="ai" && <span style={{ fontSize:21, flexShrink:0, lineHeight:1 }}>{msg.charAvatar}</span>}
+            {msg.role==="ai" && (
+              <div style={{ width:32, height:32, borderRadius:"50%", overflow:"hidden", flexShrink:0, background:C.card, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
+                {msg.charAvatar && (msg.charAvatar.startsWith("http") || msg.charAvatar.startsWith("data:"))
+                  ? <img src={msg.charAvatar} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                  : msg.charAvatar}
+              </div>
+            )}
             <div style={{ maxWidth:"80%" }}>
               {msg.role==="ai" && (
                 <div style={{ fontSize:10, color:C.mint, fontWeight:700, marginBottom:3, paddingLeft:4, display:"flex", alignItems:"center", gap:6 }}>
