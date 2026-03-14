@@ -598,6 +598,7 @@ export default function App() {
 
     if (isReg && session?.id && typeof session.id === "string") {
       await supabase.from("messages").insert({ session_id: session.id, role: "user", text });
+      await supabase.from("sessions").update({ last_used_at: new Date().toISOString() }).eq("id", session.id);
       loadSessions(supaUser.id);
     }
 
@@ -1629,19 +1630,33 @@ function LangPicker({ lang, setLang }) {
 function RoleText({ text, fontSize, lineHeight, isUser }) {
   if (!text) return null;
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+
+  // Helper: parse inline *action* within any text
+  const parseInline = (str, baseColor, key) => {
+    const parts = [];
+    const rx = /(\*[^*]+\*)/g;
+    let last = 0, m;
+    while ((m = rx.exec(str)) !== null) {
+      if (m.index > last) parts.push(<span key={`t${last}`} style={{ color: baseColor }}>{str.slice(last, m.index)}</span>);
+      parts.push(<span key={`a${m.index}`} style={{ fontStyle:"italic", color: isUser ? "rgba(126,207,179,.7)" : "rgba(180,185,195,.6)" }}>{m[0].slice(1,-1)}</span>);
+      last = m.index + m[0].length;
+    }
+    if (last < str.length) parts.push(<span key={`t${last}`} style={{ color: baseColor }}>{str.slice(last)}</span>);
+    return <span key={key}>{parts}</span>;
+  };
+
   return (
     <div style={{ fontSize, lineHeight, display:"flex", flexDirection:"column", gap:"6px", textAlign:"left" }}>
       {lines.map((line, i) => {
-        // *action*
+        // Pure *action* line
         if (/^\*[^*]+\*$/.test(line)) {
           return <span key={i} style={{ display:"block", fontStyle:"italic", color: isUser ? "rgba(126,207,179,.7)" : "rgba(180,185,195,.6)" }}>{line.slice(1,-1)}</span>;
         }
         // > thought
         if (line.startsWith(">")) {
-          const thought = line.replace(/^>\s*/, "");
           return (
             <span key={i} style={{ display:"block", fontStyle:"italic", color: isUser ? "rgba(126,207,179,.55)" : "rgba(160,150,210,.75)", borderLeft:`2px solid ${isUser?"rgba(126,207,179,.25)":"rgba(160,140,210,.25)"}`, paddingLeft:8 }}>
-              {thought}
+              {line.replace(/^>\s*/, "")}
             </span>
           );
         }
@@ -1657,31 +1672,21 @@ function RoleText({ text, fontSize, lineHeight, isUser }) {
             </span>
           );
         }
-        // — dialogue
+        // — dialogue (may contain inline *actions*)
         if (line.startsWith("—") || line.startsWith("- ")) {
+          const speech = line.replace(/^[—\-]\s*/, "");
+          const baseColor = isUser ? "#7ecfb3" : "#e8eaed";
           return (
-            <span key={i} style={{ display:"block", color: isUser ? "#7ecfb3" : "#e8eaed" }}>
+            <span key={i} style={{ display:"block" }}>
               <span style={{ color: isUser ? "rgba(126,207,179,.45)" : "rgba(180,185,195,.35)", marginRight:4 }}>—</span>
-              {line.replace(/^[—\-]\s*/, "")}
+              {parseInline(speech, baseColor, i)}
             </span>
           );
         }
-        // Mixed inline — parse *actions* and > thoughts
-        const parts = [];
-        const rx = /(\*[^*]+\*)/g;
-        let last = 0, m;
-        while ((m = rx.exec(line)) !== null) {
-          if (m.index > last) parts.push({ type:"text", text: line.slice(last, m.index) });
-          parts.push({ type:"action", text: m[0].slice(1,-1) });
-          last = m.index + m[0].length;
-        }
-        if (last < line.length) parts.push({ type:"text", text: line.slice(last) });
+        // Mixed line — parse inline *actions*
         return (
           <span key={i} style={{ display:"block" }}>
-            {parts.map((p, j) => p.type === "action"
-              ? <span key={j} style={{ fontStyle:"italic", color: isUser ? "rgba(126,207,179,.7)" : "rgba(180,185,195,.6)" }}>{p.text}</span>
-              : <span key={j} style={{ color: isUser ? "#7ecfb3" : "#e8eaed" }}>{p.text}</span>
-            )}
+            {parseInline(line, isUser ? "#7ecfb3" : "#e8eaed", i)}
           </span>
         );
       })}
