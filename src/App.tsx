@@ -507,6 +507,7 @@ export default function App() {
           response_size: settings.responseSize || "medium",
           user_char: settings.userChar || null,
           scene: settings.scene || null,
+          last_used_at: new Date().toISOString(),
         })
         .select()
         .single();
@@ -637,20 +638,19 @@ ${charPersonality ? `YOUR PERSONALITY: ${charPersonality}` : ""}${charMemory ? `
 TONE: ${toneInstr[tone] || toneInstr.neutral}
 LENGTH: ${sizeInstr[size]}
 
-STRICT FORMAT RULES — use ALL of these naturally in every response:
-- Physical actions, descriptions, surroundings → *inside asterisks*
-- Inner thoughts, feelings, what character thinks but doesn't say → > starts with >
-- Spoken dialogue → — starts with em-dash
-- Phone/text messages (when character reads or writes a message) → 📱 [message text here]
-- Example of a perfect response:
-  *Він зупиняється біля вікна, не обертаючись. Плечі напружені.*
-  > Навіщо вона знову прийшла... це ускладнює все.
-  *Телефон вібрує. Він дивиться на екран.*
-  📱 [Де ти? Нам треба поговорити]
-  *Він кладе телефон екраном донизу.*
-  — Нікого немає вдома, — каже він нарешті, голос рівний.
-- Mix all 4 types naturally. Never write only one type the whole response.
-- NEVER use "quotes" for speech. ALWAYS use — em-dash for dialogue.
+FORMAT RULES — follow exactly, no exceptions:
+- ALL physical actions and descriptions → always wrap in *asterisks*, even mid-sentence
+- Inner thoughts → > at line start
+- Spoken dialogue → — em-dash at line start
+- Phone messages → 📱 [text]
+
+CRITICAL: Actions MUST be in *asterisks*. NEVER write action as plain text.
+WRONG: — Іду, — тихо сказав він, виходячи за двері.
+RIGHT: — Іду, — *тихо сказав він,* *виходячи за двері.*
+OR: *Він тихо каже, виходячи за двері.* — Іду.
+
+Each paragraph = new line. Mix all types every response.
+NEVER use "quotes" for speech. ALWAYS — em-dash for dialogue.
 
 LANGUAGE: Respond ONLY in ${replyLang}. Every single word in ${replyLang}. No exceptions.`;
 
@@ -766,12 +766,12 @@ ${char?.personality ? `YOUR PERSONALITY: ${char.personality}` : ""}
 TONE: ${toneInstr[tone] || toneInstr.neutral}
 LENGTH: ${sizeInstr[size] || sizeInstr.medium}
 
-FORMAT RULES:
-- Actions/descriptions → *inside asterisks*
-- Inner thoughts → > starts with >
-- Dialogue → — em-dash
-- Phone messages → 📱 [text here]
-- Mix all types. NEVER use "quotes" for speech.
+FORMAT RULES — follow exactly:
+- ALL actions/descriptions → *asterisks*, always, even mid-sentence
+- Inner thoughts → > at line start  
+- Dialogue → — em-dash at line start
+- WRONG: — Іду, тихо сказав він, виходячи.
+- RIGHT: *Він тихо каже.* — Іду.
 - Give a DIFFERENT, more creative response than before.
 
 LANGUAGE: Respond ONLY in ${replyLang}. Every word in ${replyLang}.`;
