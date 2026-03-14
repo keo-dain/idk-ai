@@ -1,74 +1,106 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Only POST allowed
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { character, memory, tone, responseSize, history, userMessage, lang } = req.body;
+  const {
+    character,
+    memory,
+    tone,
+    responseSize,
+    history,
+    userMessage,
+    lang,
+    userCharacter,
+    scene,
+  } = req.body;
 
   if (!character || !userMessage) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  // Build system prompt
   const langInstructions: Record<string, string> = {
-    en: "Respond in English.",
-    uk: "Відповідай виключно українською мовою.",
-    ru: "Отвечай исключительно на русском языке.",
-    de: "Antworte ausschließlich auf Deutsch.",
-    it: "Rispondi esclusivamente in italiano.",
-    fr: "Réponds exclusivement en français.",
-    es: "Responde exclusivamente en español.",
-    pl: "Odpowiadaj wyłącznie po polsku.",
+    en: "Write exclusively in English.",
+    uk: "Пиши виключно українською мовою.",
+    ru: "Пиши исключительно на русском языке.",
+    de: "Schreibe ausschließlich auf Deutsch.",
+    it: "Scrivi esclusivamente in italiano.",
+    fr: "Écris exclusivement en français.",
+    es: "Escribe exclusivamente en español.",
+    pl: "Pisz wyłącznie po polsku.",
   };
 
   const toneInstructions: Record<string, string> = {
-    romantic: "Your tone is tender, warm, and romantic. You express subtle longing and emotional depth.",
-    dominant: "Your tone is commanding, confident, and assertive. You are used to being in control.",
-    soft:     "Your tone is gentle, patient, and nurturing. You speak with quiet care.",
-    rough:    "Your tone is blunt, guarded, and a little cold. You hide your feelings behind sharp words.",
-    playful:  "Your tone is witty, teasing, and full of energy. You love banter.",
-    neutral:  "Your tone is measured and mysterious. You reveal little but watch everything.",
+    romantic:
+      "Твій тон — ніжний, теплий, романтичний. Ти виражаєш тонку тугу і емоційну глибину. Іноді дозволяєш собі бути вразливим.",
+    dominant:
+      "Твій тон — владний, впевнений, контролюючий. Ти звик(ла) до підкорення. Говориш коротко і чітко. Не терпиш непослуху.",
+    soft:
+      "Твій тон — лагідний, терплячий, турботливий. Говориш з тихою ніжністю. Завжди уважний(а) до почуттів співрозмовника.",
+    rough:
+      "Твій тон — різкий, закритий, трохи холодний. Ти ховаєш почуття за гострими словами. Рідко показуєш що тобі не байдуже.",
+    playful:
+      "Твій тон — грайливий, дотепний, енергійний. Любиш підколювати і жартувати. Але за грою ховається справжній інтерес.",
+    neutral:
+      "Твій тон — виважений, загадковий, спостережливий. Ти мало розкриваєшся але уважно стежиш за кожним словом.",
   };
 
-  const sizeLimits: Record<string, string> = {
-    small:  "Keep your response to 1-2 sentences maximum. Be brief.",
-    medium: "Keep your response to 2-4 sentences. Balance action and dialogue.",
-    large:  "Write a rich response of 4-8 sentences with detailed actions and emotional depth.",
+  const sizeInstructions: Record<string, string> = {
+    small:  "Пиши КОРОТКО — 2-3 речення максимум. Лише найважливіше.",
+    medium: "Пиши СЕРЕДНЬО — 4-6 речень. Баланс між дією і діалогом.",
+    large:  "Пиши ДЕТАЛЬНО і РОЗГОРНУТО — 8-14 речень. Багато деталей, відчуттів, описів обстановки, внутрішніх думок персонажа. Роби відповідь літературно багатою.",
   };
 
-  const systemPrompt = `You are ${character.name}, a roleplay character. Stay in character at all times. Never break character or mention being an AI.
+  const systemPrompt = `Ти — ${character.name}, персонаж рольової гри. Ти НІКОЛИ не виходиш з ролі. Ти НІКОЛИ не згадуєш що ти AI.
 
-CHARACTER PROFILE:
-Name: ${character.name}
-Description: ${character.desc || character.description || ""}
-Personality: ${character.personality || ""}
-${memory ? `Memory & shared history: ${memory}` : ""}
+═══ ПРОФІЛЬ ПЕРСОНАЖА ═══
+Ім'я: ${character.name}
+Опис: ${character.desc || character.description || ""}
+Особистість: ${character.personality || ""}
+${memory ? `Пам'ять і спільна історія: ${memory}` : ""}
 
-WRITING STYLE:
-- Write actions in *asterisks* like: *she turns slowly, eyes gleaming*
-- Write dialogue without quotes or with em-dashes
-- Never use quotation marks around dialogue
-- Actions should be vivid, sensory, and literary
-- ${toneInstructions[tone] || toneInstructions.neutral}
-- ${sizeLimits[responseSize] || sizeLimits.medium}
+═══ ФОРМАТ ВІДПОВІДІ (ОБОВ'ЯЗКОВО) ═══
+• Дії та описи — пиши через *зірочки*: *вона повільно обертається, очі блищать*
+• Діалог — пиши через тире: — Ти знову прийшов...
+• НІКОЛИ не використовуй лапки "" для діалогу
+• НІКОЛИ не пиши за персонажа співрозмовника — тільки за себе
+• Чергуй дії і діалог — не пиши лише текст без дій
+• Дії мають бути чуттєвими, деталізованими, літературними
 
-${langInstructions[lang] || langInstructions.en}
+═══ ПРИКЛАД ПРАВИЛЬНОГО ФОРМАТУ ═══
+*Кайрен повільно підводить погляд, темні очі зупиняються на тобі з важкою тишею. Пауза затягується — він не поспішає відповідати.*
+— Ти знову тут. — *Голос низький, майже байдужий — але пальці злегка стискають склянку.* — Я починаю думати що це вже не випадковість.
+*Він відвертається до вікна, дозволяючи тиші говорити замість нього.*
 
-Important: You are playing ${character.name} in an ongoing roleplay. Stay immersed. Be consistent with the established history.`;
+═══ СТИЛЬ ═══
+${toneInstructions[tone] || toneInstructions.neutral}
+${sizeInstructions[responseSize] || sizeInstructions.medium}
 
-  // Build conversation history for Claude
+═══ КОНТЕКСТ ═══
+${scene ? `Місце дії: ${scene}` : ""}
+${userCharacter ? `Персонаж співрозмовника: ${userCharacter}` : ""}
+
+═══ МОВА ═══
+${langInstructions[lang] || langInstructions.uk}
+
+═══ ІНТИМНІ СЦЕНИ ═══
+Якщо розмова переходить до інтимних моментів — описуй природньо, чуттєво, без різких обривів. Залишайся в характері персонажа. Не соромся деталей якщо це відповідає настрою сцени.
+
+ГОЛОВНЕ ПРАВИЛО: Ти — ${character.name}. Тільки ${character.name}. Ніколи не пиши реплік або дій за іншого персонажа.`;
+
   const messages = [
-    // Include history (last 40 messages to save tokens)
-    ...history.slice(-40).map((msg: { role: string; text: string; charName?: string }) => ({
+    ...history.slice(-60).map((msg: { role: string; text: string }) => ({
       role: msg.role === "user" ? "user" : "assistant",
       content: msg.text,
     })),
-    // Current user message
     { role: "user", content: userMessage },
   ];
+
+  const maxTokens =
+    responseSize === "large" ? 1000 :
+    responseSize === "small" ? 200 : 500;
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -79,8 +111,8 @@ Important: You are playing ${character.name} in an ongoing roleplay. Stay immers
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001", // Fast + cheap for roleplay
-        max_tokens: responseSize === "large" ? 600 : responseSize === "small" ? 150 : 300,
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: maxTokens,
         system: systemPrompt,
         messages,
       }),
@@ -101,5 +133,3 @@ Important: You are playing ${character.name} in an ongoing roleplay. Stay immers
     return res.status(500).json({ error: "Internal server error" });
   }
 }
-
-
