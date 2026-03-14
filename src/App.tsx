@@ -611,6 +611,7 @@ export default function App() {
       const charPersonality = char?.personality || char?.desc || char?.description || "";
       const charMemory = char?.memory || "";
       const charFirstMsg = char?.first_message || char?.firstMsg || "";
+      const charLocation = char?.location || null;
       const userChar = session?.user_char || null;
       const scene = session?.scene || null;
       const mood = session?.mood ?? 0;
@@ -631,7 +632,7 @@ export default function App() {
       const moodDesc = mood >= 3 ? "You feel warm and open right now." : mood <= -3 ? "You feel cold and distant right now." : "";
 
       const systemPrompt = `You are ${charName} in an immersive roleplay. NEVER break character. NEVER say you are an AI.
-${charPersonality ? `YOUR PERSONALITY: ${charPersonality}` : ""}${charMemory ? `\nYOUR MEMORY: ${charMemory}` : ""}${userChar ? `\nPERSON YOU ARE TALKING TO: ${userChar}` : ""}${scene ? `\nCURRENT SCENE: ${scene}` : ""}${moodDesc ? `\nYOUR MOOD: ${moodDesc}` : ""}
+${charPersonality ? `YOUR PERSONALITY: ${charPersonality}` : ""}${charMemory ? `\nYOUR MEMORY: ${charMemory}` : ""}${charLocation ? `\nSETTING / LOCATION: ${charLocation}. Use your knowledge of this place — culture, language nuances, geography, atmosphere.` : ""}${userChar ? `\nPERSON YOU ARE TALKING TO: ${userChar}` : ""}${scene ? `\nCURRENT SCENE: ${scene}` : ""}${moodDesc ? `\nYOUR MOOD: ${moodDesc}` : ""}
 TONE: ${toneInstr[tone] || toneInstr.neutral}
 LENGTH: ${sizeInstr[size]}
 
@@ -1270,6 +1271,7 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
       response_size: size,
       tone,
       censorship: censor,
+      location: location.trim() || null,
     });
     if (error) {
       // If avatar_photo column doesn't exist, try without it
@@ -1367,6 +1369,10 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
         <Fld label={t.memory}>
           <textarea value={memory} onChange={e=>setMemory(e.target.value)} rows={3} placeholder={t.memoryHint} style={{ ...inp, resize:"none", lineHeight:1.6 }} />
           <div style={{ fontSize:11, color:C.textDim, marginTop:5, lineHeight:1.5 }}>💡 {lang==="ru"?"Персонаж всегда будет помнить это, без необходимости упоминать в роли.":"The character always remembers this — no need to mention it mid-roleplay."}</div>
+        </Fld>
+        <Fld label={lang==="uk"?"🌍 Країна / місто подій":lang==="ru"?"🌍 Страна / город событий":"🌍 Country / city of events"}>
+          <input value={location} onChange={e=>setLocation(e.target.value)} placeholder={lang==="uk"?"напр. Японія, Токіо 2024...":lang==="ru"?"напр. Япония, Токио 2024...":"e.g. Japan, Tokyo 2024..."} style={inp} />
+          <div style={{ fontSize:11, color:C.textDim, marginTop:5, lineHeight:1.5 }}>🗺 {lang==="uk"?"Бот використає знання про цю територію":"Бот использует знания об этой территории"}</div>
         </Fld>
         <div style={{ background:C.mintPale, border:`1.5px solid ${C.mintDim}`, borderRadius:16, overflow:"hidden" }}>
           <button onClick={()=>setShowAuto(a=>!a)} style={{ width:"100%", padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", fontFamily:"inherit", color:C.mint, fontWeight:700, fontSize:13, background:"transparent" }}>
