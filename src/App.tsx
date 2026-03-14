@@ -402,12 +402,13 @@ export default function App() {
   const loadSessions = useCallback(async (userId) => {
     if (!userId) return;
     setSessionsLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("sessions")
       .select("*")
       .eq("user_id", userId)
-      .order("last_used_at", { ascending: false });
+      .order("created_at", { ascending: false });
     if (data) setSessions(data);
+    if (error) console.error("loadSessions error:", error);
     setSessionsLoading(false);
   }, []);
 
@@ -865,7 +866,7 @@ LANGUAGE: Respond ONLY in ${replyLang}. Every word in ${replyLang}.`;
       <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", display:"flex", flexDirection:"column", minHeight:0 }}>
         {page==="home"    && <div style={{ flex:1 }}><HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} likedChars={likedChars} setLikedChars={setLikedChars} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} publicUsers={publicUsers} supaUser={supaUser} /></div>}
         {page==="create"  && <div style={{ flex:1 }}><CreatePage  t={t} lang={lang} supaUser={supaUser} onCharCreated={()=>supaUser&&loadMyChars(supaUser.id)} onOpenImported={(char)=>{ openChat(char, { tone: char.tone||"neutral" }); }} /></div>}
-        {page==="chats"   && <div style={{ flex:1 }}><ChatsPage   t={t} sessions={sessions} sessionsLoading={sessionsLoading} onContinue={continueSession} onDelete={deleteSession} lang={lang} isReg={isReg} onShowAuth={()=>setShowReg(true)} /></div>}
+        {page==="chats"   && <div style={{ flex:1 }}><ChatsPage   t={t} sessions={sessions} sessionsLoading={sessionsLoading} onContinue={continueSession} onDelete={deleteSession} lang={lang} isReg={isReg} onShowAuth={()=>setShowReg(true)} onRefresh={()=>loadSessions(supaUser?.id)} /></div>}
         {page==="profile" && <div style={{ flex:1 }}><ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} openChat={openChat} loadMyChars={loadMyChars} /></div>}
         {page==="chat" && activeSession && <ChatPage t={t} chat={activeSession} onSend={sendMessage} onBack={() => { setPage("chats"); loadSessions(supaUser?.id); }} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} onRegenerate={regenerateMessage} />}
       </div>
@@ -1461,12 +1462,14 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
 }
 
 // ─── CHATS PAGE ───────────────────────────────────────────────────────────────
-function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, isReg, onShowAuth }) {
+function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, isReg, onShowAuth, onRefresh }) {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [archived, setArchived] = useState(() => {
     try { return JSON.parse(localStorage.getItem("archivedChats") || "[]"); } catch { return []; }
   });
   const [showArchive, setShowArchive] = useState(false);
+
+  useEffect(() => { onRefresh?.(); }, []); // eslint-disable-line
 
   const toggleArchive = (e, sessionId) => {
     e.stopPropagation();
