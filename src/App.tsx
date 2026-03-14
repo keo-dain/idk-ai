@@ -505,6 +505,8 @@ export default function App() {
           censorship: settings.censorship ?? true,
           tone: settings.tone || "neutral",
           response_size: settings.responseSize || "medium",
+          user_char: settings.userChar || null,
+          scene: settings.scene || null,
         })
         .select()
         .single();
@@ -609,22 +611,40 @@ export default function App() {
       const charPersonality = char?.personality || char?.desc || char?.description || "";
       const charMemory = char?.memory || "";
       const charFirstMsg = char?.first_message || char?.firstMsg || "";
+      const userChar = session?.user_char || null;
+      const scene = session?.scene || null;
+      const mood = session?.mood ?? 0; // -5 to +5
+
       const sizeInstr = { small:"1-2 sentences only.", medium:"2-4 sentences.", large:"4-7 sentences with vivid detail." };
       const toneInstr = { romantic:"Be warm, intimate, emotionally vulnerable.", dominant:"Be commanding, confident, in control.", soft:"Be gentle, caring, patient.", rough:"Be blunt, cold, defensive but real.", playful:"Be witty, teasing, light-hearted.", neutral:"Be natural and authentic to your character." };
+      const moodDesc = mood >= 3 ? "You are in a very good mood, warm and open." : mood <= -3 ? "You are cold, distant, guarded right now." : mood > 0 ? "You are in a slightly good mood." : mood < 0 ? "You are slightly tense or reserved." : "";
 
       const systemPrompt = `You are ${charName} in a roleplay. Stay fully in character. Never say you are an AI.
-${charPersonality ? `Personality: ${charPersonality}` : ""}${charMemory ? `\nMemory: ${charMemory}` : ""}
+${charPersonality ? `Your personality: ${charPersonality}` : ""}${charMemory ? `\nYour memory: ${charMemory}` : ""}${userChar ? `\nThe person you're talking to: ${userChar}` : ""}${scene ? `\nCurrent scene/location: ${scene}` : ""}${moodDesc ? `\nYour current mood: ${moodDesc}` : ""}
 Tone: ${toneInstr[tone] || toneInstr.neutral}
 Length: ${sizeInstr[size] || sizeInstr.medium}
-IMPORTANT: You MUST respond ONLY in ${replyLang}. Do NOT use English unless ${replyLang} is English. Every single word must be in ${replyLang}.
+IMPORTANT: You MUST respond ONLY in ${replyLang}. Every single word must be in ${replyLang}.
 Format: Use *italics for actions* and "quotes for speech". Be immersive.`;
 
-      // Build conversation history
-      const prevMessages = (session?.messages || [])
-        .filter(m => !m.isTyping)
-        .slice(-14);
+      // Build conversation history — with auto-summary for long chats
+      const allMsgs = (session?.messages || []).filter(m => !m.isTyping);
+      let prevMessages;
+      if (allMsgs.length > 20) {
+        // Summarize older messages, keep last 10 fresh
+        const older = allMsgs.slice(0, -10);
+        const recent = allMsgs.slice(-10);
+        const summaryText = older.map(m => `${m.role === "user" ? "User" : charName}: ${m.text}`).join("\n");
+        const summary = await callAI({
+          max_tokens: 200,
+          messages: [{ role: "user", content: `Summarize this roleplay conversation in 3-4 sentences in ${replyLang}, focusing on key events and emotional moments:\n\n${summaryText}` }]
+        }).catch(() => "");
+        prevMessages = summary
+          ? [{ role: "assistant", content: `*[Summary of previous events: ${summary}]*` }, ...recent]
+          : recent;
+      } else {
+        prevMessages = allMsgs.slice(-16);
+      }
 
-      // Use Anthropic via proxy (already works for other features)
       const allMessages = [];
       if (charFirstMsg) allMessages.push({ role: "assistant", content: charFirstMsg });
       for (const m of prevMessages) {
@@ -637,6 +657,16 @@ Format: Use *italics for actions* and "quotes for speech". Be immersive.`;
         messages: allMessages,
         max_tokens: size === "large" ? 600 : size === "small" ? 150 : 350,
       }) || `*${charName} looks at you quietly.*`;
+
+      // Update mood based on message sentiment (simple heuristic)
+      const posWords = ["thank","love","happy","great","good","amazing","wonderful","yes","please"];
+      const negWords = ["hate","angry","stop","no","leave","awful","terrible","hurt"];
+      const lowerText = text.toLowerCase();
+      const moodDelta = posWords.some(w => lowerText.includes(w)) ? 1 : negWords.some(w => lowerText.includes(w)) ? -1 : 0;
+      const newMood = Math.max(-5, Math.min(5, (mood || 0) + moodDelta));
+      if (moodDelta !== 0) {
+        setActiveSession(prev => prev ? { ...prev, mood: newMood } : prev);
+      }
 
       const aiMsg = { id: `local-ai-${Date.now()}`, role: "ai", charName: char?.name, charAvatar: char?.avatar_photo || char?.avatar || char?.avatar_emoji, text: reply, originalText: reply };
 
@@ -1012,6 +1042,8 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
   const [censor, setCensor] = useState(true);
   const [tone, setTone] = useState("neutral");
   const [size, setSize] = useState("medium");
+  const [userChar, setUserChar] = useState("");
+  const [scene, setScene] = useState("");
   const bgFileRef = useRef(null);
 
   const handleBgUpload = (e) => {
@@ -1022,37 +1054,51 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
     setWallpaper("custom");
   };
 
+  const inpS = { width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 13px", color:C.text, fontSize:13, fontFamily:"inherit", marginTop:6, resize:"none", lineHeight:1.5 };
+
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.82)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:80, backdropFilter:"blur(5px)" }}>
       <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:"22px 22px 0 0", padding:"18px 18px 30px", width:"100%", maxWidth:430, maxHeight:"88vh", overflowY:"auto" }}>
         <div style={{ width:34, height:3, background:C.border, borderRadius:2, margin:"0 auto 14px" }} />
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:18 }}>
-          <span style={{ fontSize:30 }}>{char.avatar}</span>
+          <span style={{ fontSize:30 }}>{char.avatar_photo
+            ? <img src={char.avatar_photo} alt="" style={{ width:40, height:40, borderRadius:"50%", objectFit:"cover" }} />
+            : char.avatar_emoji || char.avatar || "🌟"}</span>
           <div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:15 }}>{char.name}</div>
             <div style={{ fontSize:11, color:C.textMuted }}>{t.chatSettings}</div>
           </div>
         </div>
 
-        <Lbl>{t.wallpaper}</Lbl>
-        {/* Hidden file input for custom bg */}
-        <input ref={bgFileRef} type="file" accept="image/*" onChange={handleBgUpload} style={{ display:"none" }} />
+        {/* User character */}
+        <Lbl>👤 {lang==="uk"?"Твій персонаж":lang==="ru"?"Твой персонаж":"Your character"}</Lbl>
+        <textarea
+          value={userChar}
+          onChange={e=>setUserChar(e.target.value)}
+          placeholder={lang==="uk"?"Ім'я, зовнішність, характер... (необов'язково)":lang==="ru"?"Имя, внешность, характер... (необязательно)":"Name, appearance, personality... (optional)"}
+          rows={2}
+          style={{ ...inpS, marginBottom:16 }}
+        />
 
+        {/* Scene */}
+        <Lbl>🌍 {lang==="uk"?"Сцена / локація":lang==="ru"?"Сцена / локация":"Scene / location"}</Lbl>
+        <textarea
+          value={scene}
+          onChange={e=>setScene(e.target.value)}
+          placeholder={lang==="uk"?"Де відбувається дія? Нічне місто, ліс, кав'ярня...":lang==="ru"?"Где происходит действие? Ночной город, лес, кафе...":"Where does this take place? Night city, forest, cafe..."}
+          rows={2}
+          style={{ ...inpS, marginBottom:16 }}
+        />
+
+        <Lbl>{t.wallpaper}</Lbl>
+        <input ref={bgFileRef} type="file" accept="image/*" onChange={handleBgUpload} style={{ display:"none" }} />
         <div style={{ display:"flex", gap:8, marginBottom:10, overflowX:"auto", paddingBottom:4 }}>
-          {/* Custom photo button */}
           <button onClick={() => bgFileRef.current?.click()} style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-            <div style={{
-              width:46, height:46, borderRadius:12,
-              border:`2px solid ${wallpaper==="custom" ? C.mint : C.border}`,
-              background: customBg ? `url(${customBg}) center/cover` : C.card,
-              display:"flex", alignItems:"center", justifyContent:"center",
-              fontSize:18, overflow:"hidden"
-            }}>
+            <div style={{ width:46, height:46, borderRadius:12, border:`2px solid ${wallpaper==="custom" ? C.mint : C.border}`, background: customBg ? `url(${customBg}) center/cover` : C.card, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, overflow:"hidden" }}>
               {!customBg && "🖼"}
             </div>
             <span style={{ fontSize:10, color:wallpaper==="custom"?C.mint:C.textMuted, fontWeight:600, whiteSpace:"nowrap" }}>My photo</span>
           </button>
-
           {WALLPAPERS.map(w => (
             <button key={w.id} onClick={()=>{ setWallpaper(w.id); setCustomBg(null); }} style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
               <div style={{ width:46, height:46, borderRadius:12, ...w.css, border:`2px solid ${wallpaper===w.id && !customBg ? C.mint : C.border}`, backgroundSize:"cover" }} />
@@ -1061,7 +1107,6 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
           ))}
         </div>
 
-        {/* Custom bg preview */}
         {customBg && (
           <div style={{ marginBottom:14, borderRadius:12, overflow:"hidden", height:80, position:"relative" }}>
             <img src={customBg} alt="bg preview" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
@@ -1082,7 +1127,7 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:7, marginBottom:18 }}>
           {TONES.map(tn=>(
             <button key={tn.id} onClick={()=>setTone(tn.id)} style={{ padding:"9px 4px", borderRadius:12, border:`1.5px solid ${tone===tn.id?C.mint:C.border}`, background:tone===tn.id?C.mintPale:C.card, color:tone===tn.id?C.mint:C.textMuted, fontFamily:"inherit", fontWeight:600, fontSize:10, display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
-              <span style={{ fontSize:17 }}>{tn.icon}</span>{lang==="ru"?tn.ru:tn.en}
+              <span style={{ fontSize:17 }}>{tn.icon}</span>{lang==="ru"||lang==="uk"?tn.ru:tn.en}
             </button>
           ))}
         </div>
@@ -1092,7 +1137,7 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
             <button key={val} onClick={()=>setSize(val)} style={{ flex:1, padding:"9px 4px", borderRadius:12, border:`1.5px solid ${size===val?C.mint:C.border}`, background:size===val?C.mintPale:C.card, color:size===val?C.mint:C.textMuted, fontFamily:"inherit", fontWeight:700, fontSize:11, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}><span style={{ fontSize:15 }}>{icon}</span>{label}</button>
           ))}
         </div>
-        <button onClick={()=>onStart({ wallpaper, customBg, censorship:censor, tone, responseSize:size })} style={{ width:"100%", background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:15, padding:"14px 0", borderRadius:16, marginBottom:10 }}>▶ {t.startChat}</button>
+        <button onClick={()=>onStart({ wallpaper, customBg, censorship:censor, tone, responseSize:size, userChar:userChar.trim()||null, scene:scene.trim()||null })} style={{ width:"100%", background:C.mint, color:C.bg, fontFamily:"inherit", fontWeight:800, fontSize:15, padding:"14px 0", borderRadius:16, marginBottom:10 }}>▶ {t.startChat}</button>
         <button onClick={onClose} style={{ width:"100%", color:C.textMuted, fontFamily:"inherit", fontSize:13, padding:"8px 0" }}>Cancel</button>
       </div>
     </div>
@@ -1541,20 +1586,28 @@ function RoleText({ text, fontSize, lineHeight, isUser }) {
 }
 
 // ─── CHAT PAGE ────────────────────────────────────────────────────────────────
-function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, onRegenerate }) {
+function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, onRegenerate, lang }) {
   const [input, setInput] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
-  const [variantIdx, setVariantIdx] = useState({}); // msgId → current variant index
-  const [regenerating, setRegenerating] = useState(null); // msgId being regenerated
+  const [variantIdx, setVariantIdx] = useState({});
+  const [regenerating, setRegenerating] = useState(null);
+  const [pinned, setPinned] = useState([]);
+  const [showPinned, setShowPinned] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const [ttsPlaying, setTtsPlaying] = useState(null);
   const bottomRef = useRef(null);
   const wp = WALLPAPERS.find(w=>w.id===chat.wallpaper)||WALLPAPERS[0];
   const customBgStyle = chat.customBg
     ? { backgroundImage:`url(${chat.customBg})`, backgroundSize:"cover", backgroundPosition:"center", backgroundRepeat:"no-repeat" }
     : {};
   const tn = TONES.find(x=>x.id===chat.tone);
+  const mood = chat.mood ?? 0;
+  const moodEmoji = mood >= 3 ? "😊" : mood >= 1 ? "🙂" : mood <= -3 ? "😤" : mood <= -1 ? "😐" : "😶";
+
   useEffect(()=>{ bottomRef.current?.scrollIntoView({ behavior:"smooth" }); },[chat.messages]);
-  const handleSend = () => { if(input.trim()){ onSend(input.trim()); setInput(""); } };
+  const handleSend = (txt) => { const t2 = txt || input.trim(); if(t2){ onSend(t2); setInput(""); } };
   const startEdit = (msg) => { setEditingId(msg.id); setEditText(msg.text); };
   const saveEdit  = () => { editMessage(chat.id, editingId, editText); setEditingId(null); };
   const chars = chat.chars || [];
@@ -1563,51 +1616,119 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, o
   const getCurrentIdx = (msg) => variantIdx[msg.id] ?? (getVariants(msg).length - 1);
   const getCurrentText = (msg) => getVariants(msg)[getCurrentIdx(msg)] || msg.text;
 
-  const handlePrev = (msg) => {
-    const idx = getCurrentIdx(msg);
-    if (idx > 0) setVariantIdx(p => ({ ...p, [msg.id]: idx - 1 }));
-  };
-  const handleNext = (msg) => {
-    const idx = getCurrentIdx(msg);
-    const variants = getVariants(msg);
-    if (idx < variants.length - 1) setVariantIdx(p => ({ ...p, [msg.id]: idx + 1 }));
-  };
+  const handlePrev = (msg) => { const idx = getCurrentIdx(msg); if (idx > 0) setVariantIdx(p => ({ ...p, [msg.id]: idx - 1 })); };
+  const handleNext = (msg) => { const idx = getCurrentIdx(msg); if (idx < getVariants(msg).length - 1) setVariantIdx(p => ({ ...p, [msg.id]: idx + 1 })); };
   const handleRegenerate = async (msg) => {
     if (regenerating) return;
     setRegenerating(msg.id);
     await onRegenerate(msg);
     setRegenerating(null);
-    // Jump to last variant after regen
-    setVariantIdx(p => {
-      const variants = msg.variants || [msg.text];
-      return { ...p, [msg.id]: variants.length }; // new variant will be at this index
-    });
+    setVariantIdx(p => ({ ...p, [msg.id]: (msg.variants || [msg.text]).length }));
   };
+
+  const togglePin = (msg) => {
+    setPinned(p => p.find(m => m.id === msg.id) ? p.filter(m => m.id !== msg.id) : [...p, msg]);
+  };
+
+  const speakText = (text, msgId) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    if (ttsPlaying === msgId) { setTtsPlaying(null); return; }
+    const clean = text.replace(/\*[^*]+\*/g, m => m.slice(1,-1)).replace(/["«»]/g, "");
+    const utt = new SpeechSynthesisUtterance(clean);
+    const langMap = { ru:"ru-RU", uk:"uk-UA", de:"de-DE", it:"it-IT", fr:"fr-FR", es:"es-ES", pl:"pl-PL", en:"en-US" };
+    utt.lang = langMap[lang] || "en-US";
+    utt.rate = 0.95;
+    utt.onend = () => setTtsPlaying(null);
+    setTtsPlaying(msgId);
+    window.speechSynthesis.speak(utt);
+  };
+
+  const exportChat = () => {
+    const lines = (chat.messages || []).map(m =>
+      `[${m.role === "user" ? "You" : m.charName}]\n${m.text}\n`
+    ).join("\n");
+    const blob = new Blob([lines], { type:"text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${chars[0]?.name || "chat"}_${new Date().toLocaleDateString()}.txt`;
+    a.click();
+  };
+
+  const QUICK_REPLIES = lang === "uk"
+    ? ["Розкажи більше...", "Що ти відчуваєш?", "Продовжуй...", "Як ти?", "*мовчу і слухаю*"]
+    : lang === "ru"
+    ? ["Расскажи подробнее...", "Что ты чувствуешь?", "Продолжай...", "Как ты?", "*молчу и слушаю*"]
+    : ["Tell me more...", "How do you feel?", "Continue...", "Are you okay?", "*stays silent*"];
+
+  const visibleMsgs = searchQuery
+    ? (chat.messages || []).filter(m => m.text?.toLowerCase().includes(searchQuery.toLowerCase()))
+    : (chat.messages || []);
 
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", flex:1, ...wp.css, ...customBgStyle }}>
-      <div style={{ padding:"11px 15px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:10, background:"rgba(14,15,17,.88)", backdropFilter:"blur(10px)", flexShrink:0 }}>
-        <button onClick={onBack} style={{ color:C.mint, fontSize:20, padding:"4px 8px 4px 0", lineHeight:1 }}>←</button>
-        <div style={{ fontSize:24 }}>{chars.map(c=>c.avatar||c.avatar_emoji||"🌟").join(" ")}</div>
-        <div style={{ flex:1 }}>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:14 }}>{chars.map(c=>c.name).join(", ")}</div>
-          <div style={{ fontSize:10, color:C.mint, display:"flex", gap:5, flexWrap:"wrap" }}>
-            <span>{t.online}</span><span>·</span>
-            {tn && <span>{tn.icon} {tn.en}</span>}<span>·</span>
-            <span>{chat.censorship?"🛡":"🔥"}</span><span>·</span>
-            <span>{(chat.response_size||chat.responseSize)==="small"?"📝":(chat.response_size||chat.responseSize)==="large"?"📜":"📄"}</span>
+      {/* Header */}
+      <div style={{ padding:"11px 15px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:8, background:"rgba(14,15,17,.88)", backdropFilter:"blur(10px)", flexShrink:0 }}>
+        <button onClick={onBack} style={{ color:C.mint, fontSize:20, padding:"4px 6px 4px 0", lineHeight:1 }}>←</button>
+        <div style={{ width:34, height:34, borderRadius:"50%", overflow:"hidden", background:C.card, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
+          {chars[0]?.avatar_photo && (chars[0].avatar_photo.startsWith("http") || chars[0].avatar_photo.startsWith("data:"))
+            ? <img src={chars[0].avatar_photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+            : chars[0]?.avatar_emoji || chars[0]?.avatar || "🌟"}
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13 }}>{chars.map(c=>c.name).join(", ")}</div>
+          <div style={{ fontSize:10, color:C.mint, display:"flex", gap:4 }}>
+            {tn && <span>{tn.icon}</span>}<span>·</span><span>{chat.censorship?"🛡":"🔥"}</span>
+            <span>· {moodEmoji}</span>
+            {chat.scene && <span>· 🌍</span>}
           </div>
+        </div>
+        <div style={{ display:"flex", gap:4 }}>
+          <button onClick={()=>setShowSearch(s=>!s)} style={{ fontSize:14, color:C.textMuted, padding:"4px 6px", borderRadius:8, background:showSearch?"rgba(126,207,179,.15)":"transparent" }}>🔍</button>
+          <button onClick={()=>setShowPinned(s=>!s)} style={{ fontSize:14, color:C.textMuted, padding:"4px 6px", borderRadius:8, background:showPinned?"rgba(126,207,179,.15)":"transparent" }}>📌 {pinned.length > 0 && <span style={{ fontSize:9, color:C.mint }}>{pinned.length}</span>}</button>
+          <button onClick={exportChat} style={{ fontSize:14, color:C.textMuted, padding:"4px 6px", borderRadius:8 }}>💾</button>
         </div>
         {!isReg && <div style={{ fontSize:10, color:C.textMuted, background:"rgba(28,30,33,.8)", padding:"3px 8px", borderRadius:20, border:`1px solid ${C.border}` }}>{Math.max(0,10-msgCount)} {t.messages}</div>}
       </div>
+
+      {/* Search bar */}
+      {showSearch && (
+        <div style={{ padding:"8px 13px", background:"rgba(14,15,17,.9)", borderBottom:`1px solid ${C.border}` }}>
+          <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="🔍 Search messages..." style={{ width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px 12px", color:C.text, fontSize:13, fontFamily:"inherit" }} />
+        </div>
+      )}
+
+      {/* Pinned panel */}
+      {showPinned && pinned.length > 0 && (
+        <div style={{ padding:"10px 13px", background:"rgba(28,30,33,.95)", borderBottom:`1px solid ${C.border}`, maxHeight:160, overflowY:"auto" }}>
+          <div style={{ fontSize:10, color:C.mint, fontWeight:700, marginBottom:6, textTransform:"uppercase" }}>📌 Pinned moments</div>
+          {pinned.map(m => (
+            <div key={m.id} style={{ fontSize:11, color:C.textMuted, lineHeight:1.5, marginBottom:6, borderLeft:`2px solid ${C.mintDim}`, paddingLeft:8 }}>
+              <span style={{ color:C.mint, fontWeight:700 }}>{m.charName || "You"}: </span>
+              {getCurrentText(m).slice(0, 100)}...
+              <button onClick={()=>togglePin(m)} style={{ marginLeft:6, fontSize:10, color:C.danger, background:"none" }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Scene info */}
+      {chat.scene && (
+        <div style={{ padding:"5px 13px", background:"rgba(126,207,179,.06)", borderBottom:`1px solid ${C.border}44` }}>
+          <span style={{ fontSize:10, color:C.mintDim }}>🌍 {chat.scene}</span>
+        </div>
+      )}
+
+      {/* Messages */}
       <div style={{ flex:1, overflowY:"auto", padding:"14px 13px", display:"flex", flexDirection:"column", gap:10 }}>
         {(!chat.messages || chat.messages.length===0) && (
           <div style={{ textAlign:"center", color:C.textMuted, fontSize:13, marginTop:40 }}>
-            <div style={{ fontSize:38, marginBottom:10 }}>{chars[0]?.avatar||chars[0]?.avatar_emoji||"🌟"}</div>
+            <div style={{ fontSize:38, marginBottom:10 }}>{chars[0]?.avatar_photo ? <img src={chars[0].avatar_photo} alt="" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover" }} /> : chars[0]?.avatar_emoji || chars[0]?.avatar || "🌟"}</div>
             <div>Begin your story with <strong>{chars.map(c=>c.name).join(" & ")}</strong></div>
+            {chat.userChar && <div style={{ fontSize:11, color:C.mintDim, marginTop:6 }}>Playing as: {chat.userChar}</div>}
           </div>
         )}
-        {(chat.messages || []).map(msg=>(
+        {visibleMsgs.map(msg=>(
           <div key={msg.id} className="mb" style={{ display:"flex", flexDirection:msg.role==="user"?"row-reverse":"row", gap:8, alignItems:"flex-end" }}>
             {msg.role==="ai" && (
               <div style={{ width:32, height:32, borderRadius:"50%", overflow:"hidden", flexShrink:0, background:C.card, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
@@ -1636,33 +1757,14 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, o
                   <div style={{ background:msg.role==="user"?"rgba(26,61,51,.88)":"rgba(28,30,33,.88)", border:`1px solid ${msg.role==="user"?C.mintDim:C.border}`, borderRadius:msg.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px", padding:"10px 14px", backdropFilter:"blur(4px)" }}>
                     <RoleText text={msg.isTyping ? "..." : getCurrentText(msg)} fontSize={(ts||{fontSize:13}).fontSize} lineHeight={(ts||{lineHeight:1.7}).lineHeight} isUser={msg.role==="user"} />
                   </div>
-                  {/* Variant controls — only for AI messages that are not typing */}
                   {msg.role==="ai" && !msg.isTyping && (
-                    <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:5, paddingLeft:4 }}>
-                      {/* Prev */}
-                      <button
-                        onClick={()=>handlePrev(msg)}
-                        disabled={getCurrentIdx(msg)===0}
-                        style={{ fontSize:13, color:getCurrentIdx(msg)===0?C.textDim:C.mint, background:"none", padding:"2px 5px", borderRadius:6, border:`1px solid ${getCurrentIdx(msg)===0?C.border:C.mintDim}`, opacity:getCurrentIdx(msg)===0?0.3:1, lineHeight:1 }}
-                      >‹</button>
-                      {/* Counter */}
-                      <span style={{ fontSize:10, color:C.textDim, minWidth:28, textAlign:"center" }}>
-                        {getCurrentIdx(msg)+1}/{getVariants(msg).length}
-                      </span>
-                      {/* Next */}
-                      <button
-                        onClick={()=>handleNext(msg)}
-                        disabled={getCurrentIdx(msg)>=getVariants(msg).length-1}
-                        style={{ fontSize:13, color:getCurrentIdx(msg)>=getVariants(msg).length-1?C.textDim:C.mint, background:"none", padding:"2px 5px", borderRadius:6, border:`1px solid ${getCurrentIdx(msg)>=getVariants(msg).length-1?C.border:C.mintDim}`, opacity:getCurrentIdx(msg)>=getVariants(msg).length-1?0.3:1, lineHeight:1 }}
-                      >›</button>
-                      {/* Regenerate */}
-                      <button
-                        onClick={()=>handleRegenerate(msg)}
-                        disabled={!!regenerating}
-                        style={{ fontSize:11, color:C.textMuted, background:"rgba(28,30,33,.8)", padding:"2px 8px", borderRadius:8, border:`1px solid ${C.border}`, fontFamily:"inherit", marginLeft:2, opacity:regenerating===msg.id?0.5:1 }}
-                      >
-                        {regenerating===msg.id ? "..." : "↺"}
-                      </button>
+                    <div style={{ display:"flex", alignItems:"center", gap:3, marginTop:4, paddingLeft:4, flexWrap:"wrap" }}>
+                      <button onClick={()=>handlePrev(msg)} disabled={getCurrentIdx(msg)===0} style={{ fontSize:13, color:getCurrentIdx(msg)===0?C.textDim:C.mint, background:"none", padding:"2px 5px", borderRadius:6, border:`1px solid ${getCurrentIdx(msg)===0?C.border:C.mintDim}`, opacity:getCurrentIdx(msg)===0?0.3:1 }}>‹</button>
+                      <span style={{ fontSize:10, color:C.textDim, minWidth:28, textAlign:"center" }}>{getCurrentIdx(msg)+1}/{getVariants(msg).length}</span>
+                      <button onClick={()=>handleNext(msg)} disabled={getCurrentIdx(msg)>=getVariants(msg).length-1} style={{ fontSize:13, color:getCurrentIdx(msg)>=getVariants(msg).length-1?C.textDim:C.mint, background:"none", padding:"2px 5px", borderRadius:6, border:`1px solid ${getCurrentIdx(msg)>=getVariants(msg).length-1?C.border:C.mintDim}`, opacity:getCurrentIdx(msg)>=getVariants(msg).length-1?0.3:1 }}>›</button>
+                      <button onClick={()=>handleRegenerate(msg)} disabled={!!regenerating} style={{ fontSize:11, color:C.textMuted, background:"rgba(28,30,33,.8)", padding:"2px 8px", borderRadius:8, border:`1px solid ${C.border}`, fontFamily:"inherit", opacity:regenerating===msg.id?0.5:1 }}>{regenerating===msg.id?"...":"↺"}</button>
+                      <button onClick={()=>speakText(getCurrentText(msg), msg.id)} style={{ fontSize:11, color:ttsPlaying===msg.id?C.mint:C.textDim, background:"rgba(28,30,33,.8)", padding:"2px 7px", borderRadius:8, border:`1px solid ${ttsPlaying===msg.id?C.mintDim:C.border}` }}>{ttsPlaying===msg.id?"⏹":"🔊"}</button>
+                      <button onClick={()=>togglePin(msg)} style={{ fontSize:11, color:pinned.find(m=>m.id===msg.id)?C.gold:C.textDim, background:"rgba(28,30,33,.8)", padding:"2px 7px", borderRadius:8, border:`1px solid ${C.border}` }}>📌</button>
                     </div>
                   )}
                 </div>
@@ -1672,10 +1774,19 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, o
         ))}
         <div ref={bottomRef} />
       </div>
-      <div style={{ padding:"10px 13px 18px", background:"rgba(22,23,25,.95)", borderTop:`1px solid ${C.border}`, backdropFilter:"blur(10px)", flexShrink:0 }}>
+
+      {/* Quick replies */}
+      <div style={{ display:"flex", gap:6, padding:"6px 13px 0", overflowX:"auto", flexShrink:0 }}>
+        {QUICK_REPLIES.map((qr, i) => (
+          <button key={i} onClick={()=>handleSend(qr)} style={{ flexShrink:0, fontSize:11, color:C.mint, background:"rgba(126,207,179,.08)", border:`1px solid ${C.mintDim}`, borderRadius:20, padding:"5px 12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>{qr}</button>
+        ))}
+      </div>
+
+      {/* Input */}
+      <div style={{ padding:"8px 13px 18px", background:"rgba(22,23,25,.95)", borderTop:`1px solid ${C.border}`, backdropFilter:"blur(10px)", flexShrink:0 }}>
         <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
           <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleSend(); } }} placeholder={t.typeMsg} rows={5} style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"11px 14px", color:C.text, fontSize:14, fontFamily:"inherit", resize:"none", lineHeight:1.5, transition:"border-color .2s" }} />
-          <button onClick={handleSend} style={{ background:C.mint, color:C.bg, borderRadius:14, width:42, height:42, fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>↑</button>
+          <button onClick={()=>handleSend()} style={{ background:C.mint, color:C.bg, borderRadius:14, width:42, height:42, fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>↑</button>
         </div>
       </div>
     </div>
