@@ -602,7 +602,8 @@ export default function App() {
       const tone = session?.tone || "neutral";
       const size = session?.response_size || session?.responseSize || "medium";
       const langNames = { en:"English", ru:"Russian", uk:"Ukrainian", de:"German", it:"Italian", fr:"French", es:"Spanish", pl:"Polish" };
-      const replyLang = langNames[lang] || "English";
+      const currentLang = lang;
+      const replyLang = langNames[currentLang] || "English";
 
       const charName = char?.name || "Character";
       const charPersonality = char?.personality || char?.desc || char?.description || "";
@@ -615,7 +616,7 @@ export default function App() {
 ${charPersonality ? `Personality: ${charPersonality}` : ""}${charMemory ? `\nMemory: ${charMemory}` : ""}
 Tone: ${toneInstr[tone] || toneInstr.neutral}
 Length: ${sizeInstr[size] || sizeInstr.medium}
-Language: Always respond in ${replyLang}.
+IMPORTANT: You MUST respond ONLY in ${replyLang}. Do NOT use English unless ${replyLang} is English. Every single word must be in ${replyLang}.
 Format: Use *italics for actions* and "quotes for speech". Be immersive.`;
 
       // Build conversation history
@@ -696,7 +697,7 @@ Format: Use *italics for actions* and "quotes for speech". Be immersive.`;
 ${char?.personality ? `Personality: ${char.personality}` : ""}
 Tone: ${toneInstr[tone] || toneInstr.neutral}
 Length: ${sizeInstr[size] || sizeInstr.medium}
-Language: Always respond in ${replyLang}.
+IMPORTANT: You MUST respond ONLY in ${replyLang}. Do NOT use English unless ${replyLang} is English. Every single word must be in ${replyLang}.
 Format: Use *italics for actions* and "quotes for speech". Give a DIFFERENT response than before — be creative.`;
 
     // Build history up to but not including this message
