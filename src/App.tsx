@@ -6,25 +6,28 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // DeepSeek API key — set in Vercel as VITE_DEEPSEEK_KEY
-const AI_KEY = import.meta.env?.VITE_DEEPSEEK_KEY || "";
-
 async function callAI({ system, messages, max_tokens = 500 }) {
-  const headers = {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${AI_KEY}`,
-  };
-  const allMessages = system
-    ? [{ role: "system", content: system }, ...messages]
-    : messages;
-  const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-    method: "POST", headers,
-    body: JSON.stringify({ model: "deepseek-chat", max_tokens, temperature: 0.9, messages: allMessages }),
-  });
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    throw new Error(e?.error?.message || `HTTP ${res.status}`);
+  const headers = { "Content-Type": "application/json", "Authorization": `Bearer ${AI_KEY}` };
+  const allMessages = system ? [{ role: "system", content: system }, ...messages] : messages;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    try {
+      const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
+        method: "POST", headers, signal: controller.signal,
+        body: JSON.stringify({ model: "deepseek-chat", max_tokens, temperature: 0.85, presence_penalty: 0.3, messages: allMessages }),
+      });
+      clearTimeout(timeout);
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message || `HTTP ${res.status}`); }
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content?.trim() || "";
+    } catch (err) {
+      clearTimeout(timeout);
+      if (attempt === 1) throw err;
+      await new Promise(r => setTimeout(r, 800));
+    }
   }
-  const data = await res.json();
+}
   return data.choices?.[0]?.message?.content?.trim() || "";
 }
 
