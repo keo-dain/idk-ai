@@ -6,28 +6,25 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // DeepSeek API key — set in Vercel as VITE_DEEPSEEK_KEY
+const AI_KEY = import.meta.env?.VITE_DEEPSEEK_KEY || "";
+
 async function callAI({ system, messages, max_tokens = 500 }) {
-  const headers = { "Content-Type": "application/json", "Authorization": `Bearer ${AI_KEY}` };
-  const allMessages = system ? [{ role: "system", content: system }, ...messages] : messages;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
-    try {
-      const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-        method: "POST", headers, signal: controller.signal,
-        body: JSON.stringify({ model: "deepseek-chat", max_tokens, temperature: 0.85, presence_penalty: 0.3, messages: allMessages }),
-      });
-      clearTimeout(timeout);
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message || `HTTP ${res.status}`); }
-      const data = await res.json();
-      return data.choices?.[0]?.message?.content?.trim() || "";
-    } catch (err) {
-      clearTimeout(timeout);
-      if (attempt === 1) throw err;
-      await new Promise(r => setTimeout(r, 800));
-    }
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${AI_KEY}`,
+  };
+  const allMessages = system
+    ? [{ role: "system", content: system }, ...messages]
+    : messages;
+  const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
+    method: "POST", headers,
+    body: JSON.stringify({ model: "deepseek-chat", max_tokens, temperature: 0.9, messages: allMessages }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e?.error?.message || `HTTP ${res.status}`);
   }
-}
+  const data = await res.json();
   return data.choices?.[0]?.message?.content?.trim() || "";
 }
 
@@ -607,8 +604,7 @@ export default function App() {
       const tone = session?.tone || "neutral";
       const size = session?.response_size || session?.responseSize || "medium";
       const langNames = { en:"English", ru:"Russian", uk:"Ukrainian", de:"German", it:"Italian", fr:"French", es:"Spanish", pl:"Polish" };
-      const currentLang = lang;
-      const replyLang = langNames[currentLang] || "English";
+      const replyLang = langNames[lang] || "English";
 
       const charName = char?.name || "Character";
       const charPersonality = char?.personality || char?.desc || char?.description || "";
@@ -616,37 +612,47 @@ export default function App() {
       const charFirstMsg = char?.first_message || char?.firstMsg || "";
       const userChar = session?.user_char || null;
       const scene = session?.scene || null;
-      const mood = session?.mood ?? 0; // -5 to +5
+      const mood = session?.mood ?? 0;
 
-      const sizeInstr = { small:"1-2 sentences only.", medium:"2-4 sentences.", large:"4-7 sentences with vivid detail." };
-      const toneInstr = { romantic:"Be warm, intimate, emotionally vulnerable.", dominant:"Be commanding, confident, in control.", soft:"Be gentle, caring, patient.", rough:"Be blunt, cold, defensive but real.", playful:"Be witty, teasing, light-hearted.", neutral:"Be natural and authentic to your character." };
-      const moodDesc = mood >= 3 ? "You are in a very good mood, warm and open." : mood <= -3 ? "You are cold, distant, guarded right now." : mood > 0 ? "You are in a slightly good mood." : mood < 0 ? "You are slightly tense or reserved." : "";
+      const sizeInstr = {
+        small: "Write 3-5 sentences. Mix actions and dialogue.",
+        medium: "Write 6-10 sentences. Mix actions, dialogue and inner thoughts.",
+        large: "Write 12-20 sentences. Be extremely detailed and immersive. Describe emotions, surroundings, body language, inner world. Make it feel like a novel chapter."
+      };
+      const toneInstr = {
+        romantic: "Be warm, intimate, emotionally vulnerable. Show longing and tenderness.",
+        dominant: "Be commanding, confident, in control. Short sharp sentences.",
+        soft: "Be gentle, caring, patient. Speak softly.",
+        rough: "Be blunt, cold, guarded. Show emotion only through actions.",
+        playful: "Be witty, teasing, light-hearted. Use humour.",
+        neutral: "Be natural and authentic to your character personality."
+      };
+      const moodDesc = mood >= 3 ? "You feel warm and open right now." : mood <= -3 ? "You feel cold and distant right now." : "";
 
-      const systemPrompt = `You are ${charName} in a roleplay. Stay fully in character. Never say you are an AI.
-${charPersonality ? `Your personality: ${charPersonality}` : ""}${charMemory ? `\nYour memory: ${charMemory}` : ""}${userChar ? `\nThe person you're talking to: ${userChar}` : ""}${scene ? `\nCurrent scene/location: ${scene}` : ""}${moodDesc ? `\nYour current mood: ${moodDesc}` : ""}
-Tone: ${toneInstr[tone] || toneInstr.neutral}
-Length: ${sizeInstr[size] || sizeInstr.medium}
-IMPORTANT: You MUST respond ONLY in ${replyLang}. Every single word must be in ${replyLang}.
-Format: Use *italics for actions* and "quotes for speech". Be immersive.`;
+      const systemPrompt = `You are ${charName} in an immersive roleplay. NEVER break character. NEVER say you are an AI.
+${charPersonality ? `YOUR PERSONALITY: ${charPersonality}` : ""}${charMemory ? `\nYOUR MEMORY: ${charMemory}` : ""}${userChar ? `\nPERSON YOU ARE TALKING TO: ${userChar}` : ""}${scene ? `\nCURRENT SCENE: ${scene}` : ""}${moodDesc ? `\nYOUR MOOD: ${moodDesc}` : ""}
+TONE: ${toneInstr[tone] || toneInstr.neutral}
+LENGTH: ${sizeInstr[size]}
 
-      // Build conversation history — with auto-summary for long chats
+STRICT FORMAT RULES — use ALL of these naturally in every response:
+- Physical actions, descriptions, surroundings → *inside asterisks*
+- Inner thoughts, feelings, what character thinks but doesn't say → > starts with >
+- Spoken dialogue → — starts with em-dash
+- Phone/text messages (when character reads or writes a message) → 📱 [message text here]
+- Example of a perfect response:
+  *Він зупиняється біля вікна, не обертаючись. Плечі напружені.*
+  > Навіщо вона знову прийшла... це ускладнює все.
+  *Телефон вібрує. Він дивиться на екран.*
+  📱 [Де ти? Нам треба поговорити]
+  *Він кладе телефон екраном донизу.*
+  — Нікого немає вдома, — каже він нарешті, голос рівний.
+- Mix all 4 types naturally. Never write only one type the whole response.
+- NEVER use "quotes" for speech. ALWAYS use — em-dash for dialogue.
+
+LANGUAGE: Respond ONLY in ${replyLang}. Every single word in ${replyLang}. No exceptions.`;
+
       const allMsgs = (session?.messages || []).filter(m => !m.isTyping);
-      let prevMessages;
-      if (allMsgs.length > 20) {
-        // Summarize older messages, keep last 10 fresh
-        const older = allMsgs.slice(0, -10);
-        const recent = allMsgs.slice(-10);
-        const summaryText = older.map(m => `${m.role === "user" ? "User" : charName}: ${m.text}`).join("\n");
-        const summary = await callAI({
-          max_tokens: 200,
-          messages: [{ role: "user", content: `Summarize this roleplay conversation in 3-4 sentences in ${replyLang}, focusing on key events and emotional moments:\n\n${summaryText}` }]
-        }).catch(() => "");
-        prevMessages = summary
-          ? [{ role: "assistant", content: `*[Summary of previous events: ${summary}]*` }, ...recent]
-          : recent;
-      } else {
-        prevMessages = allMsgs.slice(-16);
-      }
+      const prevMessages = allMsgs.slice(-18);
 
       const allMessages = [];
       if (charFirstMsg) allMessages.push({ role: "assistant", content: charFirstMsg });
@@ -655,11 +661,13 @@ Format: Use *italics for actions* and "quotes for speech". Be immersive.`;
       }
       allMessages.push({ role: "user", content: text });
 
+      const maxTokens = size === "large" ? 2000 : size === "small" ? 600 : 1000;
+
       const reply = await callAI({
         system: systemPrompt,
         messages: allMessages,
-        max_tokens: size === "large" ? 600 : size === "small" ? 150 : 350,
-      }) || `*${charName} looks at you quietly.*`;
+        max_tokens: maxTokens,
+      }) || `*${charName} дивиться на тебе мовчки.*`;
 
       // Update mood based on message sentiment (simple heuristic)
       const posWords = ["thank","love","happy","great","good","amazing","wonderful","yes","please"];
@@ -724,24 +732,35 @@ Format: Use *italics for actions* and "quotes for speech". Be immersive.`;
     const langNames = { en:"English", ru:"Russian", uk:"Ukrainian", de:"German", it:"Italian", fr:"French", es:"Spanish", pl:"Polish" };
     const replyLang = langNames[lang] || "English";
     const charName = char?.name || "Character";
-    const sizeInstr = { small:"1-2 sentences only.", medium:"2-4 sentences.", large:"4-7 sentences with vivid detail." };
-    const toneInstr = { romantic:"Be warm, intimate, emotionally vulnerable.", dominant:"Be commanding, confident, in control.", soft:"Be gentle, caring, patient.", rough:"Be blunt, cold, defensive but real.", playful:"Be witty, teasing, light-hearted.", neutral:"Be natural and authentic to your character." };
-    const systemPrompt = `You are ${charName} in a roleplay. Stay fully in character. Never say you are an AI.
-${char?.personality ? `Personality: ${char.personality}` : ""}
-Tone: ${toneInstr[tone] || toneInstr.neutral}
-Length: ${sizeInstr[size] || sizeInstr.medium}
-IMPORTANT: You MUST respond ONLY in ${replyLang}. Do NOT use English unless ${replyLang} is English. Every single word must be in ${replyLang}.
-Format: Use *italics for actions* and "quotes for speech". Give a DIFFERENT response than before — be creative.`;
+    const sizeInstr = {
+      small: "Write 3-5 sentences.",
+      medium: "Write 6-10 sentences. Mix actions, thoughts and dialogue.",
+      large: "Write 12-20 sentences. Be extremely detailed and immersive."
+    };
+    const toneInstr = { romantic:"Be warm, intimate, emotionally vulnerable.", dominant:"Be commanding, confident, in control.", soft:"Be gentle, caring, patient.", rough:"Be blunt, cold, guarded.", playful:"Be witty, teasing, light-hearted.", neutral:"Be natural and authentic to your character." };
+    const systemPrompt = `You are ${charName} in an immersive roleplay. NEVER break character.
+${char?.personality ? `YOUR PERSONALITY: ${char.personality}` : ""}
+TONE: ${toneInstr[tone] || toneInstr.neutral}
+LENGTH: ${sizeInstr[size] || sizeInstr.medium}
 
-    // Build history up to but not including this message
+FORMAT RULES:
+- Actions/descriptions → *inside asterisks*
+- Inner thoughts → > starts with >
+- Dialogue → — em-dash
+- Phone messages → 📱 [text here]
+- Mix all types. NEVER use "quotes" for speech.
+- Give a DIFFERENT, more creative response than before.
+
+LANGUAGE: Respond ONLY in ${replyLang}. Every word in ${replyLang}.`;
+
     const msgIdx = (session.messages || []).findIndex(m => m.id === msg.id);
-    const prevMessages = (session.messages || []).slice(0, msgIdx).filter(m => !m.isTyping).slice(-12);
+    const prevMessages = (session.messages || []).slice(0, msgIdx).filter(m => !m.isTyping).slice(-14);
     const allMessages = prevMessages.map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.text }));
 
     try {
-      const newReply = await callAI({ system: systemPrompt, messages: allMessages, max_tokens: size === "large" ? 600 : size === "small" ? 150 : 350 });
+      const maxTokens = size === "large" ? 2000 : size === "small" ? 600 : 1000;
+      const newReply = await callAI({ system: systemPrompt, messages: allMessages, max_tokens: maxTokens });
       if (!newReply) return;
-      // Add new variant to message
       setActiveSession(prev => {
         if (!prev) return prev;
         return {
@@ -1554,32 +1573,59 @@ function LangPicker({ lang, setLang }) {
 // ─── ROLEPLAY TEXT RENDERER ───────────────────────────────────────────────────
 function RoleText({ text, fontSize, lineHeight, isUser }) {
   if (!text) return null;
-  const segments = [];
-  const regex = /(\*[^*]+\*)/g;
-  let lastIndex = 0;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) segments.push({ type: "speech", text: text.slice(lastIndex, match.index).trim() });
-    segments.push({ type: "action", text: match[0].slice(1, -1).trim() });
-    lastIndex = match.index + match[0].length;
-  }
-  if (lastIndex < text.length) { const rest = text.slice(lastIndex).trim(); if (rest) segments.push({ type: "speech", text: rest }); }
-  const filtered = segments.filter(s => s.text.length > 0);
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
   return (
-    <div style={{ fontSize, lineHeight, display:"flex", flexDirection:"column", gap: "6px", textAlign:"left" }}>
-      {filtered.map((seg, i) => {
-        const isAction = seg.type === "action";
-        const showDash = i > 0 && !isAction && filtered[i-1]?.type === "action";
-        const showDashBefore = i > 0 && isAction && filtered[i-1]?.type === "speech";
+    <div style={{ fontSize, lineHeight, display:"flex", flexDirection:"column", gap:"6px", textAlign:"left" }}>
+      {lines.map((line, i) => {
+        // *action*
+        if (/^\*[^*]+\*$/.test(line)) {
+          return <span key={i} style={{ display:"block", fontStyle:"italic", color: isUser ? "rgba(126,207,179,.7)" : "rgba(180,185,195,.6)" }}>{line.slice(1,-1)}</span>;
+        }
+        // > thought
+        if (line.startsWith(">")) {
+          const thought = line.replace(/^>\s*/, "");
+          return (
+            <span key={i} style={{ display:"block", fontStyle:"italic", color: isUser ? "rgba(126,207,179,.55)" : "rgba(160,150,210,.75)", borderLeft:`2px solid ${isUser?"rgba(126,207,179,.25)":"rgba(160,140,210,.25)"}`, paddingLeft:8 }}>
+              {thought}
+            </span>
+          );
+        }
+        // 📱 phone message
+        if (line.startsWith("📱")) {
+          const msg = line.replace(/^📱\s*/, "").replace(/^\[|\]$/g, "");
+          return (
+            <span key={i} style={{ display:"block" }}>
+              <span style={{ display:"inline-flex", alignItems:"flex-start", gap:6, background:"rgba(30,35,45,.95)", border:`1px solid rgba(100,110,130,.4)`, borderRadius:12, padding:"6px 11px", maxWidth:"92%" }}>
+                <span style={{ fontSize:"0.85em", flexShrink:0, marginTop:1 }}>📱</span>
+                <span style={{ fontSize:"0.9em", color:"rgba(200,205,218,.9)" }}>{msg}</span>
+              </span>
+            </span>
+          );
+        }
+        // — dialogue
+        if (line.startsWith("—") || line.startsWith("- ")) {
+          return (
+            <span key={i} style={{ display:"block", color: isUser ? "#7ecfb3" : "#e8eaed" }}>
+              <span style={{ color: isUser ? "rgba(126,207,179,.45)" : "rgba(180,185,195,.35)", marginRight:4 }}>—</span>
+              {line.replace(/^[—\-]\s*/, "")}
+            </span>
+          );
+        }
+        // Mixed inline — parse *actions* and > thoughts
+        const parts = [];
+        const rx = /(\*[^*]+\*)/g;
+        let last = 0, m;
+        while ((m = rx.exec(line)) !== null) {
+          if (m.index > last) parts.push({ type:"text", text: line.slice(last, m.index) });
+          parts.push({ type:"action", text: m[0].slice(1,-1) });
+          last = m.index + m[0].length;
+        }
+        if (last < line.length) parts.push({ type:"text", text: line.slice(last) });
         return (
           <span key={i} style={{ display:"block" }}>
-            {(showDash || showDashBefore) && (<span style={{ color: isUser ? "rgba(126,207,179,.4)" : "rgba(122,127,135,.35)", marginRight: 6, fontWeight:300 }}>—</span>)}
-            {isAction ? (
-              <span style={{ fontStyle:"italic", color: isUser ? "rgba(126,207,179,.65)" : "rgba(180,185,195,.55)", fontWeight:400, letterSpacing:"0.01em" }}>{seg.text}</span>
-            ) : (
-              <span style={{ color: isUser ? "#7ecfb3" : "#e8eaed", fontWeight:400 }}>
-                {seg.text.replace(/^[""]|[""]$/g, "").trim() ? <>{i > 0 && !showDash && "— "}{seg.text.replace(/^[""]|[""]$/g, "").trim()}</> : seg.text}
-              </span>
+            {parts.map((p, j) => p.type === "action"
+              ? <span key={j} style={{ fontStyle:"italic", color: isUser ? "rgba(126,207,179,.7)" : "rgba(180,185,195,.6)" }}>{p.text}</span>
+              : <span key={j} style={{ color: isUser ? "#7ecfb3" : "#e8eaed" }}>{p.text}</span>
             )}
           </span>
         );
