@@ -28,12 +28,19 @@ async function callAI({ system, messages, max_tokens = 500 }) {
   return data.choices?.[0]?.message?.content?.trim() || "";
 }
 
-const C = {
+const DARK_COLORS = {
   bg: "#0e0f11", surface: "#161719", card: "#1c1e21", cardHover: "#222427",
   border: "#2a2d31", mint: "#7ecfb3", mintDim: "#4a9e85", mintPale: "#1a3d33",
   text: "#e8eaed", textMuted: "#7a7f87", textDim: "#4a4f57",
   danger: "#e07c7c", gold: "#d4a96a",
 };
+const LIGHT_COLORS = {
+  bg: "#f4f5f7", surface: "#ffffff", card: "#ebedf0", cardHover: "#e0e2e6",
+  border: "#d0d3d8", mint: "#2d9e7a", mintDim: "#3ab88e", mintPale: "#d0f0e8",
+  text: "#1a1c1f", textMuted: "#5a6070", textDim: "#9aa0ab",
+  danger: "#c0392b", gold: "#b07d2a",
+};
+let C = DARK_COLORS;
 
 const T = {
   en: {
@@ -371,6 +378,10 @@ export default function App() {
   const [msgCount, setMsgCount] = useState(0);
   const [showReg, setShowReg] = useState(false);
   const [isReg, setIsReg] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
+
+  // Update global C object based on theme
+  C = theme === "light" ? LIGHT_COLORS : DARK_COLORS;
 
   const [sessions, setSessions]       = useState([]);
   const [activeSession, setActiveSession] = useState(null);
@@ -867,8 +878,8 @@ LANGUAGE: Respond ONLY in ${replyLang}. Every word in ${replyLang}.`;
         {page==="home"    && <div style={{ flex:1 }}><HomePage    t={t} chars={filtered} search={search} setSearch={setSearch} homeTab={homeTab} setHomeTab={setHomeTab} followed={followed} setFollowed={setFollowed} likedChars={likedChars} setLikedChars={setLikedChars} openChat={openChat} groupMode={groupMode} setGroupMode={setGroupMode} groupChars={groupChars} setGroupChars={setGroupChars} lang={lang} publicUsers={publicUsers} supaUser={supaUser} /></div>}
         {page==="create"  && <div style={{ flex:1 }}><CreatePage  t={t} lang={lang} supaUser={supaUser} onCharCreated={()=>supaUser&&loadMyChars(supaUser.id)} onOpenImported={(char)=>{ openChat(char, { tone: char.tone||"neutral" }); }} /></div>}
         {page==="chats"   && <div style={{ flex:1 }}><ChatsPage   t={t} sessions={sessions} sessionsLoading={sessionsLoading} onContinue={continueSession} onDelete={deleteSession} lang={lang} isReg={isReg} onShowAuth={()=>setShowReg(true)} onRefresh={()=>loadSessions(supaUser?.id)} /></div>}
-        {page==="profile" && <div style={{ flex:1 }}><ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} openChat={openChat} loadMyChars={loadMyChars} /></div>}
-        {page==="chat" && activeSession && <ChatPage t={t} chat={activeSession} onSend={sendMessage} onBack={() => { setPage("chats"); loadSessions(supaUser?.id); }} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} onRegenerate={regenerateMessage} />}
+        {page==="profile" && <div style={{ flex:1 }}><ProfilePage t={t} isReg={isReg} setIsReg={setIsReg} profileTheme={profileTheme} setProfileTheme={setProfileTheme} pt={pt} textScale={textScale} setTextScale={setTextScale} TEXT_SCALES={TEXT_SCALES} ts={ts} lang={lang} supaUser={supaUser} onShowAuth={()=>setShowReg(true)} followed={followed} likedChars={likedChars} userProfile={userProfile} setUserProfile={setUserProfile} myCharsDB={myCharsDB} openChat={openChat} loadMyChars={loadMyChars} theme={theme} setTheme={t2=>{setTheme(t2);localStorage.setItem("theme",t2);}} sessions={sessions} /></div>}
+        {page==="chat" && activeSession && <ChatPage t={t} chat={activeSession} onSend={sendMessage} onBack={() => { setPage("chats"); loadSessions(supaUser?.id); }} msgCount={msgCount} isReg={isReg} editMessage={editMessage} lang={lang} ts={ts} onRegenerate={regenerateMessage} onChangeTone={(newTone)=>setActiveSession(prev=>prev?{...prev,tone:newTone}:prev)} />}
       </div>
 
       {groupMode && groupChars.length > 0 && page==="home" && (
@@ -1129,10 +1140,18 @@ function ChatSetupModal({ char, t, lang, onStart, onClose }) {
 
         {/* Scene */}
         <Lbl>🌍 {lang==="uk"?"Сцена / локація":lang==="ru"?"Сцена / локация":"Scene / location"}</Lbl>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:8 }}>
+          {(lang==="uk" ? ["Нічне місто","Кав'ярня","Ліс","Квартира","Школа","Офіс","Лікарня","Пляж","Замок","Метро"]
+            : lang==="ru" ? ["Ночной город","Кафе","Лес","Квартира","Школа","Офис","Больница","Пляж","Замок","Метро"]
+            : ["Night city","Cafe","Forest","Apartment","School","Office","Hospital","Beach","Castle","Subway"]
+          ).map(s => (
+            <button key={s} onClick={()=>setScene(s)} style={{ fontSize:10, padding:"3px 9px", borderRadius:16, border:`1px solid ${scene===s?C.mint:C.border}`, background:scene===s?C.mintPale:C.card, color:scene===s?C.mint:C.textMuted, fontFamily:"inherit", fontWeight:600 }}>{s}</button>
+          ))}
+        </div>
         <textarea
           value={scene}
           onChange={e=>setScene(e.target.value)}
-          placeholder={lang==="uk"?"Де відбувається дія? Нічне місто, ліс, кав'ярня...":lang==="ru"?"Где происходит действие? Ночной город, лес, кафе...":"Where does this take place? Night city, forest, cafe..."}
+          placeholder={lang==="uk"?"або напиши свою...":lang==="ru"?"или напиши свою...":"or write your own..."}
           rows={2}
           style={{ ...inpS, marginBottom:16 }}
         />
@@ -1215,9 +1234,12 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
   const [charEmoji, setCharEmoji] = useState("");
   const [charPhotoUrl, setCharPhotoUrl] = useState("");
   const [charPhotoPreview, setCharPhotoPreview] = useState(null);
+  const [charGallery, setCharGallery] = useState([]); // extra photos
+  const [activeGalleryIdx, setActiveGalleryIdx] = useState(0);
   const [uploadingCharPhoto, setUploadingCharPhoto] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const charPhotoRef = useRef(null);
+  const galleryRef = useRef(null);
 
   const handleCharPhotoUpload = (e) => {
     const file = e.target.files?.[0];
@@ -1269,7 +1291,8 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
       visibility,
       avatar_emoji: randomAvatar,
       avatar_color: randomColor,
-      avatar_photo: charPhotoUrl || null,
+      avatar_photo: (charGallery.length > 0 ? charGallery[0] : charPhotoUrl) || null,
+      avatar_gallery: charGallery.length > 1 ? charGallery : null,
       response_size: size,
       tone,
       censorship: censor,
@@ -1340,23 +1363,70 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
 
       {/* ── CREATE TAB ── */}
       <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
-        {/* Avatar picker */}
+        {/* Avatar + Gallery picker */}
         <div>
           <div style={{ fontSize:11, color:C.mint, fontWeight:700, letterSpacing:.5, textTransform:"uppercase", marginBottom:8, textAlign:"left" }}>{t.charAvatar}</div>
-          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-            <div style={{ width:64, height:64, borderRadius:16, background:C.card, border:`2px dashed ${charPhotoPreview||charEmoji ? C.mint : C.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32, overflow:"hidden", flexShrink:0 }}>
-              {charPhotoPreview ? <img src={charPhotoPreview} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : (charEmoji || "🌟")}
+          <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+            {/* Main photo */}
+            <div style={{ position:"relative", flexShrink:0 }}>
+              <div style={{ width:72, height:72, borderRadius:16, background:C.card, border:`2px dashed ${charPhotoPreview||charEmoji ? C.mint : C.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, overflow:"hidden" }}>
+                {charGallery.length > 0
+                  ? <img src={charGallery[activeGalleryIdx] || charPhotoPreview} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                  : charPhotoPreview
+                    ? <img src={charPhotoPreview} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                    : (charEmoji || "🌟")}
+              </div>
+              {charGallery.length > 1 && (
+                <div style={{ display:"flex", gap:2, marginTop:4, justifyContent:"center" }}>
+                  {charGallery.map((_,i) => (
+                    <button key={i} onClick={()=>setActiveGalleryIdx(i)} style={{ width:6, height:6, borderRadius:"50%", background:i===activeGalleryIdx?C.mint:C.border, border:"none", padding:0 }} />
+                  ))}
+                </div>
+              )}
             </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:7, flex:1 }}>
+            <div style={{ display:"flex", flexDirection:"column", gap:6, flex:1 }}>
               <input ref={charPhotoRef} type="file" accept="image/*" onChange={handleCharPhotoUpload} style={{ display:"none" }} />
-              <button onClick={()=>charPhotoRef.current?.click()} disabled={uploadingCharPhoto} style={{ width:"100%", padding:"8px 12px", borderRadius:10, border:`1.5px dashed ${C.mint}`, background:"transparent", color:C.mint, fontFamily:"inherit", fontWeight:700, fontSize:12, cursor:"pointer" }}>
-                {uploadingCharPhoto ? "⏳ Uploading..." : "📷 Upload photo"}
+              <input ref={galleryRef} type="file" accept="image/*" multiple onChange={(e)=>{
+                const files = Array.from(e.target.files||[]);
+                files.forEach(file => {
+                  const reader = new FileReader();
+                  reader.onload = ev => {
+                    const img = new Image();
+                    img.onload = () => {
+                      const c2 = document.createElement("canvas");
+                      c2.width = 300; c2.height = 300;
+                      const ctx = c2.getContext("2d");
+                      const min = Math.min(img.width, img.height);
+                      ctx.drawImage(img, (img.width-min)/2, (img.height-min)/2, min, min, 0, 0, 300, 300);
+                      const url = c2.toDataURL("image/jpeg", 0.75);
+                      setCharGallery(prev => { const next=[...prev, url]; if(!charPhotoPreview){setCharPhotoPreview(url);setCharPhotoUrl(url);} return next; });
+                    };
+                    img.src = ev.target.result;
+                  };
+                  reader.readAsDataURL(file);
+                });
+              }} style={{ display:"none" }} />
+              <button onClick={()=>charPhotoRef.current?.click()} disabled={uploadingCharPhoto} style={{ padding:"7px 10px", borderRadius:10, border:`1.5px dashed ${C.mint}`, background:"transparent", color:C.mint, fontFamily:"inherit", fontWeight:700, fontSize:11, cursor:"pointer" }}>
+                📷 {lang==="uk"?"Головне фото":lang==="ru"?"Главное фото":"Main photo"}
               </button>
-              <button onClick={()=>setShowEmojiPicker(s=>!s)} style={{ width:"100%", padding:"8px 12px", borderRadius:10, border:`1px solid ${C.border}`, background:C.card, color:C.textMuted, fontFamily:"inherit", fontSize:12, fontWeight:600 }}>
-                😊 Choose emoji
+              <button onClick={()=>galleryRef.current?.click()} style={{ padding:"7px 10px", borderRadius:10, border:`1px solid ${C.border}`, background:C.card, color:C.textMuted, fontFamily:"inherit", fontSize:11, fontWeight:600 }}>
+                🖼 {lang==="uk"?"Галерея (кілька)":lang==="ru"?"Галерея (несколько)":"Gallery (multiple)"}
+              </button>
+              <button onClick={()=>setShowEmojiPicker(s=>!s)} style={{ padding:"7px 10px", borderRadius:10, border:`1px solid ${C.border}`, background:C.card, color:C.textMuted, fontFamily:"inherit", fontSize:11 }}>
+                😊 Emoji
               </button>
             </div>
           </div>
+          {charGallery.length > 0 && (
+            <div style={{ display:"flex", gap:6, marginTop:8, overflowX:"auto", paddingBottom:4 }}>
+              {charGallery.map((url,i) => (
+                <div key={i} style={{ position:"relative", flexShrink:0 }}>
+                  <img src={url} alt="" onClick={()=>setActiveGalleryIdx(i)} style={{ width:44, height:44, borderRadius:10, objectFit:"cover", border:`2px solid ${i===activeGalleryIdx?C.mint:C.border}`, cursor:"pointer" }} />
+                  <button onClick={()=>setCharGallery(p=>p.filter((_,j)=>j!==i))} style={{ position:"absolute", top:-4, right:-4, width:16, height:16, borderRadius:"50%", background:C.danger, color:"#fff", fontSize:9, display:"flex", alignItems:"center", justifyContent:"center", border:"none" }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
           {showEmojiPicker && (
             <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:10, background:C.card, borderRadius:14, padding:12, border:`1px solid ${C.border}` }}>
               {["🧝‍♀️","🕵️","🤖","⚔️","🌸","🌑","💻","🪶","🐉","🦋","🔮","🌙","⭐","🦊","🐺","👁","🗡️","🌺","🎭","💀","🏹","🌊","🔥","❄️","🌿"].map(em => (
@@ -1731,7 +1801,7 @@ function RoleText({ text, fontSize, lineHeight, isUser }) {
 }
 
 // ─── CHAT PAGE ────────────────────────────────────────────────────────────────
-function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, onRegenerate, lang }) {
+function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, onRegenerate, lang, onChangeTone }) {
   const [input, setInput] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
@@ -1742,6 +1812,7 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, o
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [ttsPlaying, setTtsPlaying] = useState(null);
+  const [showToneMenu, setShowToneMenu] = useState(false);
   const bottomRef = useRef(null);
   const wp = WALLPAPERS.find(w=>w.id===chat.wallpaper)||WALLPAPERS[0];
   const customBgStyle = chat.customBg
@@ -1753,6 +1824,7 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, o
 
   useEffect(()=>{ bottomRef.current?.scrollIntoView({ behavior:"smooth" }); },[chat.messages]);
   const handleSend = (txt) => { const t2 = txt || input.trim(); if(t2){ onSend(t2); setInput(""); } };
+  const handleContinue = () => onSend("*продовжує*");
   const startEdit = (msg) => { setEditingId(msg.id); setEditText(msg.text); };
   const saveEdit  = () => { editMessage(chat.id, editingId, editText); setEditingId(null); };
   const chars = chat.chars || [];
@@ -1829,12 +1901,24 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, o
           </div>
         </div>
         <div style={{ display:"flex", gap:4 }}>
+          <button onClick={()=>setShowToneMenu(s=>!s)} title="Change tone" style={{ fontSize:14, color:C.textMuted, padding:"4px 6px", borderRadius:8, background:showToneMenu?"rgba(126,207,179,.15)":"transparent" }}>{tn?.icon||"⚖️"}</button>
           <button onClick={()=>setShowSearch(s=>!s)} style={{ fontSize:14, color:C.textMuted, padding:"4px 6px", borderRadius:8, background:showSearch?"rgba(126,207,179,.15)":"transparent" }}>🔍</button>
           <button onClick={()=>setShowPinned(s=>!s)} style={{ fontSize:14, color:C.textMuted, padding:"4px 6px", borderRadius:8, background:showPinned?"rgba(126,207,179,.15)":"transparent" }}>📌 {pinned.length > 0 && <span style={{ fontSize:9, color:C.mint }}>{pinned.length}</span>}</button>
           <button onClick={exportChat} style={{ fontSize:14, color:C.textMuted, padding:"4px 6px", borderRadius:8 }}>💾</button>
         </div>
         {!isReg && <div style={{ fontSize:10, color:C.textMuted, background:"rgba(28,30,33,.8)", padding:"3px 8px", borderRadius:20, border:`1px solid ${C.border}` }}>{Math.max(0,10-msgCount)} {t.messages}</div>}
       </div>
+
+      {/* Tone menu */}
+      {showToneMenu && (
+        <div style={{ padding:"10px 13px", background:"rgba(14,15,17,.95)", borderBottom:`1px solid ${C.border}`, display:"flex", gap:6, flexWrap:"wrap" }}>
+          {TONES.map(tn2 => (
+            <button key={tn2.id} onClick={()=>{ onChangeTone(tn2.id); setShowToneMenu(false); }} style={{ fontSize:11, padding:"5px 10px", borderRadius:20, border:`1px solid ${chat.tone===tn2.id?C.mint:C.border}`, background:chat.tone===tn2.id?C.mintPale:C.card, color:chat.tone===tn2.id?C.mint:C.textMuted, fontFamily:"inherit", display:"flex", alignItems:"center", gap:4 }}>
+              {tn2.icon} {lang==="uk"||lang==="ru"?tn2.ru:tn2.en}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Search bar */}
       {showSearch && (
@@ -1944,7 +2028,12 @@ function ChatPage({ t, chat, onSend, onBack, msgCount, isReg, editMessage, ts, o
       </div>
 
       {/* Input */}
-      <div style={{ padding:"8px 13px 18px", background:"rgba(22,23,25,.95)", borderTop:`1px solid ${C.border}`, backdropFilter:"blur(10px)", flexShrink:0 }}>
+      <div style={{ padding:"8px 13px 18px", background: C.theme==="light"?"rgba(244,245,247,.97)":"rgba(22,23,25,.95)", borderTop:`1px solid ${C.border}`, backdropFilter:"blur(10px)", flexShrink:0 }}>
+        <div style={{ display:"flex", gap:6, marginBottom:6 }}>
+          <button onClick={handleContinue} style={{ fontSize:11, color:C.mint, background:"rgba(126,207,179,.08)", border:`1px solid ${C.mintDim}`, borderRadius:20, padding:"5px 14px", fontFamily:"inherit", fontWeight:700, whiteSpace:"nowrap" }}>
+            ▶▶ {lang==="uk"?"Продовжити":lang==="ru"?"Продолжить":"Continue"}
+          </button>
+        </div>
         <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
           <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleSend(); } }} placeholder={t.typeMsg} rows={5} style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"11px 14px", color:C.text, fontSize:14, fontFamily:"inherit", resize:"none", lineHeight:1.5, transition:"border-color .2s" }} />
           <button onClick={()=>handleSend()} style={{ background:C.mint, color:C.bg, borderRadius:14, width:42, height:42, fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>↑</button>
@@ -2097,7 +2186,7 @@ function AuthModal({ t, C, onClose, onSuccess }) {
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
 const AVATAR_EMOJIS = ["🌙","⭐","🌸","🔥","💎","🌊","🦋","🐉","🌿","✨","🎭","🗡️","🪐","🌑","💀","🦊","🐺","🌺","🎪","🔮"];
 
-function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang, supaUser, onShowAuth, followed, likedChars, userProfile, setUserProfile, myCharsDB, openChat, loadMyChars }) {
+function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, textScale, setTextScale, TEXT_SCALES, ts, lang, supaUser, onShowAuth, followed, likedChars, userProfile, setUserProfile, myCharsDB, openChat, loadMyChars, theme, setTheme, sessions }) {
   const [activeTab, setActiveTab] = useState("chars");
   const [editingProfile, setEditingProfile] = useState(false);
   const [editName, setEditName] = useState(userProfile.displayName);
@@ -2206,9 +2295,14 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
           <div style={{ fontSize:12, color:C.textMuted, lineHeight:1.6, marginBottom:12, textAlign:"center", maxWidth:280 }}>{userProfile.bio}</div>
         ) : <div style={{ marginBottom:8 }} />}
 
-        {/* Stats — minimal row */}
-        <div style={{ display:"flex", gap:24, marginBottom:16 }}>
-          {[[myChars.length, t.characters||"Characters"],[likedCharsList.length, t.liked||"Liked"],[followedAuthors.length, t.following||"Following"]].map(([val,label]) => (
+        {/* Stats — extended row */}
+        <div style={{ display:"flex", gap:18, marginBottom:16, flexWrap:"wrap", justifyContent:"center" }}>
+          {[
+            [myChars.length, t.characters||"Chars"],
+            [(sessions||[]).length, lang==="uk"?"Чати":lang==="ru"?"Чаты":"Chats"],
+            [likedCharsList.length, t.liked||"Liked"],
+            [(sessions||[]).reduce((acc,s)=>acc+(s.message_count||0),0)||"—", lang==="uk"?"Повід":lang==="ru"?"Сообщ":"Msgs"],
+          ].map(([val,label]) => (
             <div key={label} style={{ textAlign:"center" }}>
               <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16, color:pt.accent }}>{val}</div>
               <div style={{ fontSize:9, color:C.textDim, textTransform:"uppercase", letterSpacing:.5, fontWeight:600 }}>{label}</div>
@@ -2217,7 +2311,7 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
         </div>
 
         {/* Action buttons */}
-        <div style={{ display:"flex", gap:8 }}>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center" }}>
           {editingProfile ? (
             <>
               <button onClick={saveProfile} style={{ fontSize:12, color:C.bg, padding:"8px 20px", borderRadius:20, background:pt.accent, fontFamily:"inherit", fontWeight:700 }}>✓ Save</button>
@@ -2226,7 +2320,8 @@ function ProfilePage({ t, isReg, setIsReg, profileTheme, setProfileTheme, pt, te
           ) : (
             <>
               <button onClick={()=>{ setEditName(userProfile.displayName); setEditBio(userProfile.bio); setEditAvatar(userProfile.avatarEmoji); setEditingProfile(true); }} style={{ fontSize:12, color:pt.accent, padding:"8px 20px", borderRadius:20, border:`1px solid ${pt.accent}44`, fontFamily:"inherit", fontWeight:700, background:"rgba(255,255,255,.04)" }}>✏ Edit</button>
-              <button onClick={handleLogout} style={{ fontSize:12, color:C.textMuted, padding:"8px 16px", borderRadius:20, border:`1px solid ${C.border}44`, fontFamily:"inherit", fontWeight:600, background:"rgba(255,255,255,.02)" }}>Sign out</button>
+              <button onClick={()=>{ const t2=theme==="dark"?"light":"dark"; setTheme(t2); }} style={{ fontSize:12, color:C.textMuted, padding:"8px 14px", borderRadius:20, border:`1px solid ${C.border}44`, fontFamily:"inherit", fontWeight:600, background:"rgba(255,255,255,.02)" }}>{theme==="dark"?"☀️ Light":"🌙 Dark"}</button>
+              <button onClick={handleLogout} style={{ fontSize:12, color:C.textMuted, padding:"8px 14px", borderRadius:20, border:`1px solid ${C.border}44`, fontFamily:"inherit", fontWeight:600, background:"rgba(255,255,255,.02)" }}>Sign out</button>
             </>
           )}
         </div>
