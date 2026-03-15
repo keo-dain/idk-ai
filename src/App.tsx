@@ -883,7 +883,7 @@ LANGUAGE: Respond ONLY in ${replyLang}. Every word in ${replyLang}.`;
 
       {page !== "chat" && (
         <div style={{ display:"flex", background:C.surface, borderTop:`1px solid ${C.border}`, padding:"6px 0 12px", flexShrink:0 }}>
-          {[{id:"home",icon:"⊞",label:t.home},{id:"create",icon:"✦",label:t.create},{id:"chats",icon:"◈",label:t.chats},{id:"profile",icon:"◉",label:t.profile}].map(nav => (
+          {[{id:"home",icon:"⊞",label:t.home},{id:"chats",icon:"◈",label:t.chats},{id:"create",icon:"✦",label:t.create},{id:"profile",icon:"◉",label:t.profile}].map(nav => (
             <button key={nav.id} className="nb" onClick={() => setPage(nav.id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 0" }}>
               <span style={{ fontSize:16, opacity:page===nav.id?1:0.28, filter:page===nav.id?`drop-shadow(0 0 6px ${C.mint})`:"none", transition:"all .2s" }}>{nav.icon}</span>
               <span style={{ fontSize:9, fontWeight:700, color:page===nav.id?C.mint:C.textDim, letterSpacing:.4, textTransform:"uppercase" }}>{nav.label}</span>
@@ -1464,12 +1464,28 @@ function CreatePage({ t, lang, supaUser, onCharCreated }) {
 // ─── CHATS PAGE ───────────────────────────────────────────────────────────────
 function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, isReg, onShowAuth, onRefresh }) {
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [showArchive, setShowArchive] = useState(false);
+
+  // Auto-archive oldest chats beyond 10
   const [archived, setArchived] = useState(() => {
     try { return JSON.parse(localStorage.getItem("archivedChats") || "[]"); } catch { return []; }
   });
-  const [showArchive, setShowArchive] = useState(false);
 
   useEffect(() => { onRefresh?.(); }, []); // eslint-disable-line
+
+  // Auto-archive: if more than 10 active chats, oldest go to archive
+  useEffect(() => {
+    if (!sessions.length) return;
+    const active = sessions.filter(s => !archived.includes(s.id));
+    if (active.length > 10) {
+      const toArchive = active.slice(10).map(s => s.id);
+      setArchived(prev => {
+        const next = [...new Set([...prev, ...toArchive])];
+        localStorage.setItem("archivedChats", JSON.stringify(next));
+        return next;
+      });
+    }
+  }, [sessions]); // eslint-disable-line
 
   const toggleArchive = (e, sessionId) => {
     e.stopPropagation();
@@ -1504,11 +1520,28 @@ function ChatsPage({ t, sessions, sessionsLoading, onContinue, onDelete, lang, i
   );
 
   if (!sessions.length) return (
-    <div style={{ padding:"14px 18px 24px",  }}>
+    <div style={{ padding:"14px 18px 24px" }}>
       <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21, marginBottom:16 }}>{t.chats}</div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:12, padding:"40px 0" }}>
         <span style={{ fontSize:40 }}>💬</span>
         <span style={{ fontSize:14, color:C.textMuted }}>{t.noChats}</span>
+      </div>
+    </div>
+  );
+
+  if (!visibleSessions.length && !showArchive) return (
+    <div style={{ padding:"14px 18px 24px" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:21 }}>{t.chats}</div>
+        {archivedSessions.length > 0 && (
+          <button onClick={()=>setShowArchive(true)} style={{ fontSize:11, color:C.mint, background:"rgba(126,207,179,.1)", border:`1px solid ${C.mintDim}`, borderRadius:20, padding:"5px 12px", fontFamily:"inherit", fontWeight:700 }}>
+            📦 Archive ({archivedSessions.length})
+          </button>
+        )}
+      </div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:12, padding:"30px 0" }}>
+        <span style={{ fontSize:40 }}>💬</span>
+        <span style={{ fontSize:14, color:C.textMuted }}>All chats archived</span>
       </div>
     </div>
   );
